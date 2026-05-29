@@ -62,6 +62,9 @@ body{--bg:#080B14;--bg2:#0E1422;--surface:#141C2E;--surface2:#1A2438;--line:rgba
 .num::-webkit-outer-spin-button,.num::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}.num{-moz-appearance:textfield}
 .colon{font-family:'Anton',sans-serif;font-size:20px;color:var(--muted)}
 .match-foot{display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:8px}
+.countdown{margin-top:9px;text-align:center;font-size:11.5px;font-weight:700;letter-spacing:.3px;color:var(--muted);background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.countdown.soon{color:var(--gold);border-color:rgba(255,201,77,.45);background:rgba(255,201,77,.06)}
+.countdown.started{color:var(--primary);border-color:rgba(255,53,86,.35);background:rgba(255,53,86,.06)}
 .foot-right{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .bankbtn{font-family:inherit;font-size:11px;font-weight:800;color:var(--muted);background:transparent;border:1px solid var(--line2);padding:5px 10px;border-radius:8px;cursor:pointer;transition:.15s}
 .bankbtn:hover:not(:disabled){color:var(--gold);border-color:var(--gold)}.bankbtn.on{background:var(--gold);color:#1a1400;border-color:var(--gold)}.bankbtn:disabled{opacity:.4;cursor:not-allowed}
@@ -103,7 +106,25 @@ body{--bg:#080B14;--bg2:#0E1422;--surface:#141C2E;--surface2:#1A2438;--line:rgba
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--text);color:#0a0e18;font-weight:800;padding:12px 22px;border-radius:30px;font-size:14px;box-shadow:0 12px 40px rgba(0,0,0,.5);z-index:50;max-width:90%;text-align:center}
 .cfg{max-width:520px;margin:8vh auto;background:var(--surface);border:1px solid var(--line2);border-radius:16px;padding:26px;line-height:1.6}
 .cfg code{background:var(--bg2);padding:2px 6px;border-radius:5px;font-size:13px}
-@media(max-width:520px){.statbar{grid-template-columns:repeat(2,1fr)}.tname{font-size:12.5px}.flag{font-size:20px}.num{width:40px;height:42px;font-size:19px}.head{align-items:flex-start}.tab{font-size:12.5px}}
+.oddsboard{display:flex;flex-direction:column;gap:4px}
+.oddlegend{display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-bottom:8px}
+.lgnd{display:inline-flex;align-items:center;gap:5px}
+.sw{width:10px;height:10px;border-radius:3px;display:inline-block}
+.oddgroup{display:flex;flex-direction:column;gap:8px;margin:8px 0 6px}
+.oddrow{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:13px 15px}
+.oddteams{display:flex;justify-content:space-between;align-items:center;font-weight:800;font-size:13.5px;margin-bottom:10px;gap:8px}
+.oddteams .vs{color:var(--muted);font-weight:600;font-size:11px;flex-shrink:0}
+.oddteams .ot{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.oddline{margin-bottom:8px}
+.oddlabel{font-size:9.5px;letter-spacing:1px;font-weight:800;color:var(--muted);margin-bottom:4px}
+.bar{display:flex;height:24px;border-radius:7px;overflow:hidden;background:var(--bg2);border:1px solid var(--line)}
+.seg{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;min-width:0;overflow:hidden;transition:width .5s ease}
+.seg.sh{background:var(--blue);color:#04101f}
+.seg.sd{background:#5b6480;color:#fff}
+.seg.sa{background:var(--primary);color:#fff}
+.oddempty{font-size:12px;color:var(--muted);padding:5px 0;font-style:italic}
+.oddtop{font-size:11.5px;color:var(--gold);font-weight:700;margin-top:5px}
+@media(max-width:520px){.statbar{grid-template-columns:repeat(2,1fr)}.tname{font-size:12.5px}.flag{font-size:20px}.num{width:40px;height:42px;font-size:19px}.head{align-items:flex-start}.tab{font-size:12px}}
 </style>
 </head>
 <body>
@@ -194,6 +215,14 @@ const MATCHES = [
 const GROUPS = ["A","B","C","D","E","F","G","H","I","J","K","L"];
 const outcome = (h,a)=> h>a?"H":h<a?"A":"D";
 const matchById = Object.fromEntries(MATCHES.map(m=>[m.id,m]));
+function fmtCountdown(ms){
+  if(ms<=0) return "0m";
+  const s=Math.floor(ms/1000);
+  const d=Math.floor(s/86400), h=Math.floor((s%86400)/3600), m=Math.floor((s%3600)/60), sec=s%60;
+  if(d>0) return d+"d "+h+"h "+m+"m";
+  if(h>0) return h+"h "+m+"m "+sec+"s";
+  return m+"m "+sec+"s";
+}
 function scorePick(pk,res){
   if(pk.h===res.h&&pk.a===res.a) return {pts:PTS.EXACT,tier:"exact"};
   if(outcome(pk.h,pk.a)!==outcome(res.h,res.a)) return {pts:0,tier:"miss"};
@@ -224,6 +253,7 @@ function Pool(){
   const [players,setPlayers]=useState([]);
   const [allPicks,setAllPicks]=useState({});    // {uid:{mid:{h,a,banker}}}
   const [results,setResults]=useState({});      // {mid:{h,a}}
+  const [odds,setOdds]=useState({});             // {mid:{h,d,a}} market probabilities
   const [myS,setMyS]=useState({}); const [myB,setMyB]=useState({});
   const [dirty,setDirty]=useState(false);
   const [tab,setTab]=useState("picks");
@@ -252,6 +282,7 @@ function Pool(){
     setAllPicks(map);
     const rmap={}; (resRows||[]).forEach(r=>{rmap[r.match_id]={h:r.home,a:r.away};});
     setResults(rmap); setResultDraft(rmap);
+    try{ const {data:oddsRows}=await sb.from("match_odds").select("*"); const om={}; (oddsRows||[]).forEach(o=>{om[o.match_id]={h:o.home_pct,d:o.draw_pct,a:o.away_pct};}); setOdds(om); }catch(e){ setOdds({}); }
     if(pm){setPoolName(pm.name);setCommissioner(pm.commissioner);}
     if(uid && map[uid]){
       const s={},b={};
@@ -272,7 +303,7 @@ function Pool(){
     sub = sb.auth.onAuthStateChange((_e,session)=>{
       if(session) hydrateMe(session.user); else { setMe(null); }
     });
-    const t=setInterval(()=>setNow(Date.now()),30000);
+    const t=setInterval(()=>setNow(Date.now()),1000);
     return ()=>{ try{sub.data.subscription.unsubscribe();}catch(e){} clearInterval(t); };
   },[]);
 
@@ -428,6 +459,7 @@ function Pool(){
       <button className={`tab ${tab==="picks"?"active":""}`} onClick={()=>setTab("picks")}>Picks</button>
       <button className={`tab ${tab==="board"?"active":""}`} onClick={()=>{loadAll(me.id);setTab("board");}}>Leaderboard</button>
       <button className={`tab ${tab==="tables"?"active":""}`} onClick={()=>{loadAll(me.id);setTab("tables");}}>Tables</button>
+      <button className={`tab ${tab==="odds"?"active":""}`} onClick={()=>{loadAll(me.id);setTab("odds");}}>Odds</button>
       {isCommish&&<button className={`tab ${tab==="results"?"active":""}`} onClick={()=>setTab("results")}>Results</button>}
     </nav>
 
@@ -460,6 +492,10 @@ function Pool(){
                 </div>
                 <div className="team away"><span className="flag">{FLAGS[m.a]||"⚽"}</span><span className="tname">{m.a}</span></div>
               </div>
+              {!res && (()=>{const diff=new Date(m.utc).getTime()-now;return (
+                <div className={`countdown ${(!locked&&diff<3600000)?"soon":""} ${locked?"started":""}`}>
+                  {locked ? "● Kicked off — picks locked" : "⏱ Kicks off in "+fmtCountdown(diff)}
+                </div>);})()}
               <div className="match-foot">
                 <button className={`bankbtn ${isB?"on":""}`} disabled={locked} onClick={()=>toggleBanker(g,m.id)}>★ Banker</button>
                 <span className="foot-right">
@@ -496,6 +532,50 @@ function Pool(){
           <span>{t.P}</span><span>{t.W}</span><span>{t.D}</span><span>{t.L}</span><span>{t.GD>0?"+":""}{t.GD}</span><span className="ptcol">{t.Pts}</span>
         </div>))}
       </div>))}
+    </div>}
+
+    {tab==="odds"&&<div className="oddsboard">
+      <div className="oddlegend">
+        <span className="lgnd"><span className="sw" style={{background:"var(--blue)"}}></span>Home win</span>
+        <span className="lgnd"><span className="sw" style={{background:"#5b6480"}}></span>Draw</span>
+        <span className="lgnd"><span className="sw" style={{background:"var(--primary)"}}></span>Away win</span>
+        <span className="muted" style={{marginLeft:"auto"}}>Pool lean reveals at kickoff</span>
+      </div>
+      {GROUPS.map(g=>{const open=openGroups.has(g);return(<div key={g} className="group">
+        <button className="group-head" onClick={()=>setOpenGroups(s=>{const n=new Set(s);n.has(g)?n.delete(g):n.add(g);return n;})}>
+          <span className="group-tag">GROUP {g}</span><span className="caret">{open?"−":"+"}</span>
+        </button>
+        {open&&<div className="oddgroup">{MATCHES.filter(m=>m.g===g).map(m=>{
+          const locked=isLocked(m); const mk=odds[m.id];
+          let ph=0,pd=0,pa=0,pc=0; const sc={};
+          for(const pid in allPicks){const pk=allPicks[pid][m.id]; if(!pk)continue; pc++; const o=outcome(pk.h,pk.a); if(o==="H")ph++; else if(o==="A")pa++; else pd++; const k=pk.h+"\u2013"+pk.a; sc[k]=(sc[k]||0)+1;}
+          const pct=(x)=>pc?Math.round(x/pc*100):0;
+          let topS=null,topN=0; for(const k in sc){if(sc[k]>topN){topN=sc[k];topS=k;}}
+          const Bar=(h,d,a)=>(<div className="bar">
+            <div className="seg sh" style={{width:h+"%"}}>{h>=12?h+"%":""}</div>
+            <div className="seg sd" style={{width:d+"%"}}>{d>=12?d+"%":""}</div>
+            <div className="seg sa" style={{width:a+"%"}}>{a>=12?a+"%":""}</div>
+          </div>);
+          return (<div key={m.id} className="oddrow">
+            <div className="oddteams">
+              <span className="ot">{FLAGS[m.h]||"⚽"} {m.h}</span>
+              <span className="vs">vs</span>
+              <span className="ot" style={{textAlign:"right"}}>{m.a} {FLAGS[m.a]||"⚽"}</span>
+            </div>
+            <div className="oddline">
+              <div className="oddlabel">MARKET LINE</div>
+              {mk ? Bar(mk.h,mk.d,mk.a) : <div className="oddempty">Line not posted yet — fills in automatically as the feed connects.</div>}
+            </div>
+            <div className="oddline">
+              <div className="oddlabel">YOUR POOL</div>
+              {locked
+                ? (pc>0 ? Bar(pct(ph),pct(pd),pct(pa)) : <div className="oddempty">No picks were made on this match.</div>)
+                : <div className="oddempty">Revealed at kickoff · {pc} pick{pc!==1?"s":""} in so far</div>}
+            </div>
+            {locked&&pc>0&&topS&&<div className="oddtop">Most-picked score: {topS} ({topN} of {pc})</div>}
+          </div>);
+        })}</div>}
+      </div>);})}
     </div>}
 
     {tab==="results"&&isCommish&&<div className="results">
