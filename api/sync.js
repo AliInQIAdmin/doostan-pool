@@ -35,7 +35,7 @@ const MAP = [
 const ALIAS = {
   southkorea:"korearepublic", czechrepublic:"czechia", usa:"unitedstates",
   turkey:"turkiye", congodr:"drcongo", capeverdeislands:"capeverde",
-  bosnia:"bosniaandherzegovina", iriran:"iran", "cotedivoire":"ivorycoast",
+  bosnia:"bosniaandherzegovina", bosniaherzegovina:"bosniaandherzegovina", iriran:"iran", "cotedivoire":"ivorycoast",
 };
 function norm(s){ return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]/g,""); }
 function canon(s){ const n=norm(s); return ALIAS[n]||n; }
