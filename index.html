@@ -124,6 +124,9 @@ body{--bg:#080B14;--bg2:#0E1422;--surface:#141C2E;--surface2:#1A2438;--line:rgba
 .seg.sa{background:var(--primary);color:#fff}
 .oddempty{font-size:12px;color:var(--muted);padding:5px 0;font-style:italic}
 .oddtop{font-size:11.5px;color:var(--gold);font-weight:700;margin-top:5px}
+.rollband{font-family:'Hanken Grotesk',sans-serif;font-weight:800;font-size:13px;line-height:1.45;white-space:pre-wrap;max-width:100%;margin-bottom:5px;background:linear-gradient(90deg,#ff3b3b,#ff9e2c,#ffe14d,#36e5a0,#4d8dff,#8a6bff,#ff5fd0,#ff3b3b);background-size:200% auto;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:rainbowmove 4s linear infinite, rollfade .5s ease}
+@keyframes rainbowmove{to{background-position:200% center}}
+@keyframes rollfade{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:520px){.statbar{grid-template-columns:repeat(2,1fr)}.tname{font-size:12.5px}.flag{font-size:20px}.num{width:40px;height:42px;font-size:19px}.head{align-items:flex-start}.tab{font-size:12px}}
 </style>
 </head>
@@ -213,6 +216,15 @@ const MATCHES = [
   {id:"L6",g:"L",h:"Croatia",a:"Ghana",utc:"2026-06-27T21:00:00Z",when:"Jun 27 · 5:00 PM ET",v:"Lincoln Financial Field, Philadelphia"},
 ];
 const GROUPS = ["A","B","C","D","E","F","G","H","I","J","K","L"];
+const BANNER = [
+  "B K   B K    B K    BK",
+  "KNMKI     KNMKI     KNMKI",
+  "Unplug The Appliances",
+  "بِسْمِ الله، سَنُراهِنُ",
+  "بسم‌الله، شرط می‌بندی؟",
+  "Thank You For Your Vote",
+  "چو باد اندر شکم پیچد فرو هِل که باد اندر شکم بار است بر دل",
+];
 const outcome = (h,a)=> h>a?"H":h<a?"A":"D";
 const matchById = Object.fromEntries(MATCHES.map(m=>[m.id,m]));
 function fmtCountdown(ms){
@@ -440,7 +452,7 @@ function Pool(){
   // ===== MAIN =====
   return (<div className="container">
     <header className="head">
-      <div><div className="kicker">{poolName}</div><h1 className="display title">Doostan World Cup '26 Pick'em</h1></div>
+      <div><div className="rollband" key={Math.floor(now/5000)} dir="auto">{BANNER[Math.floor(now/5000)%BANNER.length]}</div><h1 className="display title">Doostan World Cup '26 Pick'em</h1></div>
       <div className="you">
         <div className="you-name">{me.name}{isCommish&&<span className="badge-c">COMMISH</span>}</div>
         <div className="muted tiny">Rank {myRank?`#${myRank}`:"—"} · {meRow?.pts??0} pts</div>
