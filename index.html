@@ -41,8 +41,11 @@ body{--bg:#080B14;--bg2:#0E1422;--surface:#141C2E;--surface2:#1A2438;--line:rgba
 .stat.accent{background:linear-gradient(160deg,rgba(255,53,86,.18),var(--surface));border-color:rgba(255,53,86,.4)}
 .stat-val{font-family:'Anton',sans-serif;font-size:24px;line-height:1}.stat.accent .stat-val{color:var(--primary)}
 .stat-lbl{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-top:4px}
-.tabs{display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);padding:5px;border-radius:14px;margin-bottom:16px}
-.tab{flex:1;border:0;background:transparent;color:var(--muted);font-family:inherit;font-weight:700;font-size:13.5px;padding:11px 6px;border-radius:10px;cursor:pointer;transition:.18s}
+.tabs{display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);padding:5px;border-radius:14px;margin-bottom:16px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.majlis{animation:rollfade .25s ease}
+.majlis .tgwrap{min-height:320px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:8px 12px}
+.tab{flex:1;border:0;background:transparent;color:var(--muted);font-family:inherit;font-weight:700;font-size:13.5px;padding:11px 12px;border-radius:10px;cursor:pointer;transition:.18s;white-space:nowrap}
 .tab:hover{color:var(--text)}.tab.active{background:linear-gradient(135deg,var(--primary),var(--primary-d));color:#fff;box-shadow:0 6px 18px rgba(255,53,86,.3)}
 .legend{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .pill{font-size:11px;font-weight:800;padding:4px 9px;border-radius:20px;color:#06121f}
@@ -269,6 +272,7 @@ function Pool(){
   const [myS,setMyS]=useState({}); const [myB,setMyB]=useState({});
   const [dirty,setDirty]=useState(false);
   const [tab,setTab]=useState("picks");
+  const [chatSeen,setChatSeen]=useState(false);
   const [now,setNow]=useState(Date.now());
   const [toast,setToast]=useState("");
   const [resultDraft,setResultDraft]=useState({});
@@ -472,6 +476,7 @@ function Pool(){
       <button className={`tab ${tab==="board"?"active":""}`} onClick={()=>{loadAll(me.id);setTab("board");}}>Leaderboard</button>
       <button className={`tab ${tab==="tables"?"active":""}`} onClick={()=>{loadAll(me.id);setTab("tables");}}>Tables</button>
       <button className={`tab ${tab==="odds"?"active":""}`} onClick={()=>{loadAll(me.id);setTab("odds");}}>Odds</button>
+      <button className={`tab ${tab==="chat"?"active":""}`} onClick={()=>{setChatSeen(true);setTab("chat");}}>Majllisi Trash Talk</button>
       {isCommish&&<button className={`tab ${tab==="results"?"active":""}`} onClick={()=>setTab("results")}>Results</button>}
     </nav>
 
@@ -610,10 +615,33 @@ function Pool(){
       <div className="savebar"><button className="btn btn-primary big" onClick={saveResults} disabled={busy}>{busy?"Saving…":"Save results"}</button></div>
     </div>}
 
+    {chatSeen&&<div className="majlis" style={{display:tab==="chat"?"block":"none"}}>
+      <p className="muted tiny" style={{marginBottom:12}}>Talk trash, celebrate, and argue the calls — in Farsi or English. Tap “Log in with Telegram” once to post under your name. 🔥</p>
+      <TgChat/>
+    </div>}
+
     {toast&&<div className="toast">{toast}</div>}
   </div>);
 }
 
+function TgChat(){
+  const box = React.useRef(null);
+  useEffect(()=>{
+    const el = box.current;
+    if(!el || el.getAttribute("data-loaded")) return;
+    el.setAttribute("data-loaded","1");
+    const s = document.createElement("script");
+    s.async = true;
+    s.src = "https://comments.app/js/widget.js?3";
+    s.setAttribute("data-comments-app-website","VqcHnOhk");
+    s.setAttribute("data-limit","20");
+    s.setAttribute("data-color","FF3556");
+    s.setAttribute("data-dark","1");
+    s.setAttribute("data-page-id","doostan-majllisi");
+    el.appendChild(s);
+  },[]);
+  return <div ref={box} className="tgwrap"></div>;
+}
 function Stat({label,value,accent}){return <div className={`stat ${accent?"accent":""}`}><div className="stat-val">{value}</div><div className="stat-lbl">{label}</div></div>;}
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
