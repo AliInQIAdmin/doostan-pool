@@ -91,6 +91,42 @@ body{--bg:#080B14;--bg2:#0E1422;--surface:#141C2E;--surface2:#1A2438;--line:rgba
 .gifthumb{width:100%;height:90px;object-fit:cover;border-radius:8px;cursor:pointer;background:var(--surface2)}
 .gifthumb:hover{outline:2px solid var(--primary)}
 .giphy-attrib{font-size:10px;color:var(--muted);text-align:center;margin-top:7px;letter-spacing:.5px}
+.bet-wrap{animation:rollfade .25s ease}
+.wallet{display:flex;justify-content:space-between;align-items:center;gap:12px;background:linear-gradient(135deg,rgba(255,53,86,.16),rgba(255,201,77,.10));border:1px solid var(--line2);border-radius:16px;padding:16px 18px;margin-bottom:18px}
+.wlbl{font-size:10.5px;letter-spacing:1.5px;font-weight:800;color:var(--muted)}
+.wbal{font-size:34px;font-weight:900;line-height:1.1;color:var(--gold)}
+.wbal.neg{color:var(--primary)}
+.wmeta{font-size:11px;color:var(--muted);text-align:right;line-height:1.5}
+.bsec{font-size:13px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);margin:18px 0 10px;font-weight:800}
+.betcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:13px 15px;margin-bottom:10px}
+.betteams{display:flex;align-items:center;justify-content:space-between;gap:8px;font-weight:800;font-size:14px}
+.betteams .bt{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.betteams .bvs{color:var(--muted);font-weight:600;font-size:11px;flex:none}
+.bwhen{font-size:11px;color:var(--muted);margin:3px 0 10px}
+.oddpick{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:9px}
+.obtn{display:flex;flex-direction:column;align-items:center;gap:3px;background:var(--bg2);border:1.5px solid var(--line2);border-radius:11px;padding:9px 4px;cursor:pointer;color:var(--text);font-family:inherit;transition:.15s}
+.obtn:disabled{opacity:.4;cursor:not-allowed}
+.obtn.on{border-color:var(--primary);background:rgba(255,53,86,.14)}
+.obtn .ol{font-size:11.5px;font-weight:700;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.obtn .oo{font-size:15px;font-weight:900;color:var(--gold)}
+.betrow{display:flex;gap:8px}
+.stakein{flex:1;background:var(--bg);border:1.5px solid var(--line2);border-radius:11px;color:var(--text);font-family:inherit;font-size:14px;padding:9px 12px;outline:none}
+.stakein:focus{border-color:var(--primary)}
+.bpot{font-size:12px;color:var(--gold);margin-top:7px;font-weight:700}
+.betlocked{font-size:13px;color:var(--text);background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:9px 12px;line-height:1.5}
+.mybet{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:10px 13px;margin-bottom:7px}
+.mybet.won{border-color:rgba(46,230,160,.4)}.mybet.lost{border-color:rgba(255,53,86,.35)}
+.mbteams{font-weight:800;font-size:13px}
+.mbmeta{font-size:11px;color:var(--muted);margin-top:2px}
+.mbresult{font-weight:900;font-size:15px;flex:none}
+.mbresult .won{color:var(--green)}.mbresult .lost{color:var(--primary)}.mbresult .pend{color:var(--muted);font-size:12px;font-weight:700}
+.tycoon{display:flex;flex-direction:column;gap:5px}
+.tyrow{display:flex;align-items:center;gap:11px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:9px 13px}
+.tyrow.me{border-color:rgba(255,53,86,.4);background:rgba(255,53,86,.07)}
+.tyrk{width:22px;font-weight:900;color:var(--muted);flex:none}
+.tyname{flex:1;font-weight:700;font-size:13.5px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tybal{font-weight:900;font-size:14px;color:var(--gold);flex:none}
+.tybal.neg{color:var(--primary)}
 .tab{flex:1;border:0;background:transparent;color:var(--muted);font-family:inherit;font-weight:700;font-size:13.5px;padding:11px 12px;border-radius:10px;cursor:pointer;transition:.18s;white-space:nowrap}
 .tab:hover{color:var(--text)}.tab.active{background:linear-gradient(135deg,var(--primary),var(--primary-d));color:#fff;box-shadow:0 6px 18px rgba(255,53,86,.3)}
 .legend{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px}
@@ -529,6 +565,7 @@ function Pool(){
       <button className={`tab ${tab==="board"?"active":""}`} onClick={()=>{loadAll(me.id);setTab("board");}}>Leaderboard</button>
       <button className={`tab ${tab==="tables"?"active":""}`} onClick={()=>{loadAll(me.id);setTab("tables");}}>Tables</button>
       <button className={`tab ${tab==="odds"?"active":""}`} onClick={()=>{loadAll(me.id);setTab("odds");}}>Odds</button>
+      <button className={`tab ${tab==="bet"?"active":""}`} onClick={()=>setTab("bet")} dir="auto">کازینوی کُری</button>
       <button className={`tab ${tab==="chat"?"active":""}`} onClick={()=>setTab("chat")} dir="auto">کل‌کل فوتبالی</button>
       {isCommish&&<button className={`tab ${tab==="results"?"active":""}`} onClick={()=>setTab("results")}>Results</button>}
     </nav>
@@ -668,12 +705,128 @@ function Pool(){
       <div className="savebar"><button className="btn btn-primary big" onClick={saveResults} disabled={busy}>{busy?"Saving…":"Save results"}</button></div>
     </div>}
 
+    {tab==="bet"&&<Betting me={me} flash={flash}/>}
+
     {tab==="chat"&&<div className="majlis">
       <p className="muted tiny" style={{marginBottom:12}}>Talk trash, celebrate, and argue the calls — in Farsi or English, with emojis and GIFs. 🔥</p>
       <Chat me={me} flash={flash}/>
     </div>}
 
     {toast&&<div className="toast">{toast}</div>}
+  </div>);
+}
+
+function Betting({me,flash}){
+  const [bets,setBets]=useState([]);
+  const [odds,setOdds]=useState({});
+  const [results,setResults]=useState({});
+  const [profs,setProfs]=useState({});
+  const [sel,setSel]=useState({});
+  const [stakeIn,setStakeIn]=useState({});
+  const [busy,setBusy]=useState(null);
+  const [tick,setTick]=useState(Date.now());
+  const M=useMemo(()=>Object.fromEntries(MATCHES.map(m=>[m.id,m])),[]);
+
+  const load=useCallback(async()=>{
+    const [b,o,r,p]=await Promise.all([
+      sb.from("bets").select("*"),
+      sb.from("match_odds").select("*"),
+      sb.from("results").select("*"),
+      sb.from("profiles").select("id,display_name"),
+    ]);
+    setBets(b.data||[]);
+    const om={}; (o.data||[]).forEach(x=>om[x.match_id]=x); setOdds(om);
+    const rm={}; (r.data||[]).forEach(x=>rm[x.match_id]={h:x.home,a:x.away}); setResults(rm);
+    const pm={}; (p.data||[]).forEach(x=>pm[x.id]=x.display_name); setProfs(pm);
+  },[]);
+  useEffect(()=>{ load(); const t=setInterval(load,15000); return ()=>clearInterval(t); },[load]);
+  useEffect(()=>{ const t=setInterval(()=>setTick(Date.now()),30000); return ()=>clearInterval(t); },[]);
+  const now=tick;
+
+  const decOdds=(pct)=> (pct&&pct>0) ? Math.min(20,Math.max(1.05, Math.round(100/pct*100)/100)) : null;
+  const outcomeOf=(r)=> r.h>r.a?"home": r.h<r.a?"away":"draw";
+  const betNet=(bet)=>{ const r=results[bet.match_id]; if(!r) return null; return bet.pick===outcomeOf(r) ? Math.round(bet.stake*(bet.odds-1)) : -bet.stake; };
+  const balanceOf=(uid)=>{ let bal=5000; bets.filter(b=>b.user_id===uid).forEach(b=>{const n=betNet(b); if(n!=null)bal+=n;}); return bal; };
+
+  const myBets=bets.filter(b=>b.user_id===me.id).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
+  const myByMatch={}; myBets.forEach(b=>{myByMatch[b.match_id]=b;});
+  const myBalance=balanceOf(me.id);
+  const pendingStake=myBets.filter(b=>!results[b.match_id]).reduce((s,b)=>s+b.stake,0);
+
+  const tycoons=useMemo(()=>{
+    const ids=new Set(bets.map(b=>b.user_id)); ids.add(me.id);
+    return [...ids].map(uid=>({uid,name:profs[uid]||(uid===me.id?(me.name||"You"):"Player"),bal:balanceOf(uid),n:bets.filter(b=>b.user_id===uid).length}))
+      .sort((a,b)=>b.bal-a.bal||a.name.localeCompare(b.name));
+  },[bets,results,profs,tick]);
+
+  const sideLabel=(m,side)=> side==="home"?m.h : side==="away"?m.a : "Draw";
+  const place=async(mid)=>{
+    const pick=sel[mid]; const stake=parseInt(stakeIn[mid],10);
+    if(!pick) return flash("Tap a side to bet on first");
+    if(!stake||stake<1) return flash("Enter how many kori-coin to stake");
+    setBusy(mid);
+    const {error}=await sb.from("bets").insert({user_id:me.id,match_id:mid,pick,stake,display_name:me.name||"Anon"});
+    setBusy(null);
+    if(error){ flash(error.message.includes("duplicate")?"You already have a bet on this match":(error.message||"Couldn't place bet")); return; }
+    setSel(s=>{const n={...s};delete n[mid];return n;}); setStakeIn(s=>{const n={...s};delete n[mid];return n;});
+    flash("Bet placed! 🎲"); load();
+  };
+
+  const openMatches=MATCHES.filter(m=> new Date(m.utc).getTime()>now && odds[m.id]).sort((a,b)=>new Date(a.utc)-new Date(b.utc));
+  const fmtK=(n)=> (n>0?"+":"")+n.toLocaleString();
+
+  return (<div className="bet-wrap">
+    <div className="wallet">
+      <div><div className="wlbl">YOUR KORI-COIN · کُری‌کوین</div><div className={`wbal ${myBalance<0?"neg":""}`}>{myBalance.toLocaleString()}</div></div>
+      <div className="wmeta">{pendingStake>0?<>کُری {pendingStake.toLocaleString()} riding on open bets</>:"No open bets"}<br/>Everyone starts at 5,000 · you can go negative</div>
+    </div>
+
+    <h3 className="bsec">Open matches</h3>
+    {openMatches.length===0 && <div className="muted tiny" style={{marginBottom:14}}>No matches are open for betting yet. Lines open once the odds are posted — roughly two days before each kickoff. Check back closer to June 11. ⚽</div>}
+    {openMatches.map(m=>{
+      const o=odds[m.id]; const mine=myByMatch[m.id];
+      const oh=decOdds(o.home_pct), od=decOdds(o.draw_pct), oa=decOdds(o.away_pct);
+      return (<div key={m.id} className="betcard">
+        <div className="betteams"><span className="bt" dir="auto">{(FLAGS[m.h]||"")+" "+m.h}</span><span className="bvs">vs</span><span className="bt" dir="auto">{(FLAGS[m.a]||"")+" "+m.a}</span></div>
+        <div className="bwhen">{m.when}</div>
+        {mine
+          ? <div className="betlocked">🔒 Your bet: <b>{mine.stake.toLocaleString()}</b> on <b>{sideLabel(m,mine.pick)}</b> @ <b>{(+mine.odds).toFixed(2)}×</b> · to win <b>{Math.round(mine.stake*mine.odds).toLocaleString()}</b></div>
+          : <>
+            <div className="oddpick">
+              {["home","draw","away"].map(side=>{
+                const od2 = side==="home"?oh:side==="draw"?od:oa;
+                return <button key={side} className={`obtn ${sel[m.id]===side?"on":""}`} disabled={!od2} onClick={()=>setSel(s=>({...s,[m.id]:side}))}>
+                  <span className="ol">{side==="draw"?"Draw":sideLabel(m,side)}</span><span className="oo">{od2?od2.toFixed(2)+"×":"—"}</span></button>;
+              })}
+            </div>
+            <div className="betrow">
+              <input className="stakein" type="number" min="1" placeholder="Stake (kori-coin)" value={stakeIn[m.id]||""} onChange={e=>setStakeIn(s=>({...s,[m.id]:e.target.value}))}/>
+              <button className="btn btn-primary" disabled={busy===m.id} onClick={()=>place(m.id)}>{busy===m.id?"…":"Place bet"}</button>
+            </div>
+            {sel[m.id]&&stakeIn[m.id]>0 && <div className="bpot">To win <b>{Math.round((+stakeIn[m.id])*(sel[m.id]==="home"?oh:sel[m.id]==="draw"?od:oa)).toLocaleString()}</b> kori-coin</div>}
+          </>}
+      </div>);
+    })}
+
+    <h3 className="bsec">Your bets</h3>
+    {myBets.length===0 && <div className="muted tiny" style={{marginBottom:14}}>No bets yet.</div>}
+    {myBets.map(b=>{
+      const m=M[b.match_id]; const net=betNet(b);
+      const status = net==null ? "pending" : net>=0 ? "won" : "lost";
+      return (<div key={b.id} className={`mybet ${status}`}>
+        <div><div className="mbteams" dir="auto">{m?`${m.h} vs ${m.a}`:b.match_id}</div><div className="mbmeta">{b.stake.toLocaleString()} on {m?sideLabel(m,b.pick):b.pick} @ {(+b.odds).toFixed(2)}×</div></div>
+        <div className="mbresult">{status==="pending"?<span className="pend">Pending</span>:<span className={status}>{fmtK(net)}</span>}</div>
+      </div>);
+    })}
+
+    <h3 className="bsec">🏆 Tycoon leaderboard</h3>
+    <div className="tycoon">
+      {tycoons.map((t,i)=>(<div key={t.uid} className={`tyrow ${t.uid===me.id?"me":""}`}>
+        <span className="tyrk">{i+1}</span><span className="tyname" dir="auto">{t.name}{t.uid===me.id?" (you)":""}</span>
+        <span className={`tybal ${t.bal<0?"neg":""}`}>{t.bal.toLocaleString()}</span>
+      </div>))}
+    </div>
+    <div className="muted tiny" style={{marginTop:10}}>Payout odds come from the match line — a longer shot pays more. Bets lock at kickoff and settle automatically when the final score posts.</div>
   </div>);
 }
 
