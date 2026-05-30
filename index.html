@@ -330,6 +330,7 @@ function Pool(){
   const [authMode,setAuthMode]=useState("login");
   const [fEmail,setFEmail]=useState(""); const [fName,setFName]=useState("");
   const [fPass,setFPass]=useState(""); const [fPool,setFPool]=useState("World Cup 2026 Pool");
+  const [fInvite,setFInvite]=useState("");
   const [busy,setBusy]=useState(false);
 
   const flash=(m)=>{setToast(m);setTimeout(()=>setToast(""),2800);};
@@ -407,6 +408,8 @@ function Pool(){
         flash("Welcome back!");
       } else {
         if(!fName.trim()) { setBusy(false); return flash("Enter a display name"); }
+        const { data:okInvite, error:invErr } = await sb.rpc("check_invite",{p_code:fInvite});
+        if(invErr || !okInvite){ setBusy(false); return flash("Invalid invitation code — ask the commissioner for it."); }
         const { data, error } = await sb.auth.signUp({email,password:pass});
         if(error) return flash(error.message);
         if(!data.session){ setBusy(false); return flash("Check your email to confirm, then log in. (Or ask the commissioner to turn off email confirmation.)"); }
@@ -493,6 +496,7 @@ function Pool(){
         {authMode==="signup"&&firstEver&&<input className="field" placeholder="Pool name" value={fPool} onChange={e=>setFPool(e.target.value)} />}
         <input className="field" type="email" placeholder="Email" value={fEmail} onChange={e=>setFEmail(e.target.value)} />
         {authMode==="signup"&&<input className="field" placeholder="Display name" value={fName} onChange={e=>setFName(e.target.value)} />}
+        {authMode==="signup"&&<input className="field" placeholder="Invitation code" value={fInvite} onChange={e=>setFInvite(e.target.value)} />}
         <input className="field" type="password" placeholder="Password (6+ characters)" value={fPass} onChange={e=>setFPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doAuth()} />
         <button className="btn btn-primary big" onClick={doAuth} disabled={busy}>{busy?"…":(authMode==="login"?"Log In →":"Sign Up →")}</button>
         <button className="btn-link" onClick={()=>setAuthMode(authMode==="login"?"signup":"login")}>{authMode==="login"?"Need an account? Sign up":"Have an account? Log in"}</button>
