@@ -506,7 +506,7 @@ function Pool(){
       <button className={`tab ${tab==="board"?"active":""}`} onClick={()=>{loadAll(me.id);setTab("board");}}>Leaderboard</button>
       <button className={`tab ${tab==="tables"?"active":""}`} onClick={()=>{loadAll(me.id);setTab("tables");}}>Tables</button>
       <button className={`tab ${tab==="odds"?"active":""}`} onClick={()=>{loadAll(me.id);setTab("odds");}}>Odds</button>
-      <button className={`tab ${tab==="chat"?"active":""}`} onClick={()=>setTab("chat")}>Majllisi Trash Talk</button>
+      <button className={`tab ${tab==="chat"?"active":""}`} onClick={()=>setTab("chat")} dir="auto">کل‌کل فوتبالی</button>
       {isCommish&&<button className={`tab ${tab==="results"?"active":""}`} onClick={()=>setTab("results")}>Results</button>}
     </nav>
 
