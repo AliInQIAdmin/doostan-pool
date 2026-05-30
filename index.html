@@ -45,16 +45,35 @@ body{--bg:#080B14;--bg2:#0E1422;--surface:#141C2E;--surface2:#1A2438;--line:rgba
 .tabs::-webkit-scrollbar{display:none}
 .majlis{animation:rollfade .25s ease}
 .chat{display:flex;flex-direction:column;height:62vh;min-height:380px;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
-.chatlog{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
-.cmsg{max-width:82%;align-self:flex-start;background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:8px 11px}
-.cmsg.mine{align-self:flex-end;background:rgba(255,53,86,.12);border-color:rgba(255,53,86,.30)}
+.chatlog{flex:1;overflow-y:auto;padding:14px}
+.cnode{margin-bottom:9px}
+.cmsg{display:inline-block;max-width:90%;background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:8px 11px;vertical-align:top}
+.cmsg.mine{background:rgba(255,53,86,.12);border-color:rgba(255,53,86,.30)}
+.cmsg.reply{border-left:3px solid var(--line2)}
+.crefer{font-size:11px;color:var(--muted);margin-bottom:4px;display:flex;align-items:center;gap:4px;opacity:.9;border-left:2px solid var(--primary);padding-left:7px}
+.crefer b{color:var(--text);font-weight:700}
+.crefer .rfx{max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cmeta{display:flex;align-items:center;gap:8px;margin-bottom:3px}
 .cname{font-weight:800;font-size:12px;color:var(--text)}
 .ctime{font-size:10.5px;color:var(--muted)}
-.cdel{margin-left:auto;background:transparent;border:0;color:var(--muted);font-size:16px;line-height:1;cursor:pointer;padding:0 2px}
-.cdel:hover{color:var(--primary)}
 .cbody{font-size:14px;line-height:1.45;color:var(--text);white-space:pre-wrap;word-break:break-word}
 .cgif{margin-top:5px;max-width:220px;border-radius:10px;display:block}
+.cactions{display:flex;gap:14px;margin-top:5px}
+.clink{background:transparent;border:0;color:var(--muted);font-family:inherit;font-size:11.5px;font-weight:700;cursor:pointer;padding:0}
+.clink:hover{color:var(--primary)}
+.replybar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--line);background:var(--bg2)}
+.replybar .rtx{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.replybar .cdel{margin-left:auto}
+.cdel{background:transparent;border:0;color:var(--muted);font-size:16px;line-height:1;cursor:pointer;padding:0 2px;flex:none}
+.cdel:hover{color:var(--primary)}
+.creacts{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.rbadge{display:inline-flex;align-items:center;gap:4px;background:var(--bg2);border:1px solid var(--line2);border-radius:20px;padding:2px 8px;font-size:13px;color:var(--text);cursor:pointer;line-height:1.5}
+.rbadge.mine{background:rgba(255,53,86,.16);border-color:rgba(255,53,86,.45)}
+.rbadge .rc{font-size:11px;font-weight:800;color:var(--muted)}
+.rbadge.mine .rc{color:var(--primary)}
+.repop{display:flex;gap:2px;margin-top:6px;background:var(--bg2);border:1px solid var(--line2);border-radius:22px;padding:3px 6px;width:fit-content}
+.repop button{background:transparent;border:0;font-size:19px;cursor:pointer;padding:2px 4px;border-radius:9px;line-height:1}
+.repop button:hover{background:var(--surface2)}
 .composer{display:flex;align-items:flex-end;gap:7px;padding:9px;border-top:1px solid var(--line);background:var(--bg2)}
 .cinput{flex:1;resize:none;max-height:120px;background:var(--bg);border:1.5px solid var(--line2);border-radius:12px;color:var(--text);font-family:inherit;font-size:14px;padding:9px 12px;outline:none}
 .cinput:focus{border-color:var(--primary)}
@@ -655,6 +674,7 @@ function Pool(){
 }
 
 const EMOJIS = ["⚽","🥅","🏆","🔥","😂","😭","😮","😱","🤬","🤡","👏","🙌","💪","🐐","🎉","🥳","💀","👀","🤝","🫡","❤️","💔","🤞","😎","🙏","💯","⭐","🥶","🤯","😤","🤩","👑","🚀","🇮🇷","🇺🇸","🇧🇷"];
+const REACTS = ["👍","❤️","😂","😮","😢","🔥"];
 
 function fmtTime(iso){
   const d=new Date(iso), diff=Date.now()-d.getTime();
@@ -672,25 +692,57 @@ function Chat({me,flash}){
   const [gifQ,setGifQ]=useState("");
   const [gifs,setGifs]=useState([]);
   const [sending,setSending]=useState(false);
-  const endRef=React.useRef(null), taRef=React.useRef(null);
+  const [replyTo,setReplyTo]=useState(null); // {id,name,preview}
+  const [reacts,setReacts]=useState([]);
+  const [openReact,setOpenReact]=useState(null); // message id whose reaction palette is open
+  const endRef=React.useRef(null), taRef=React.useRef(null), logRef=React.useRef(null), atBottom=React.useRef(true);
   const noKey=GIPHY_KEY.includes("PASTE");
 
   const load=useCallback(async()=>{
-    const {data}=await sb.from("messages").select("*").order("created_at",{ascending:false}).limit(200);
-    setMsgs((data||[]).reverse());
+    const [mRes,rRes]=await Promise.all([
+      sb.from("messages").select("*").order("created_at",{ascending:true}).limit(500),
+      sb.from("reactions").select("message_id,user_id,emoji"),
+    ]);
+    setMsgs(mRes.data||[]); setReacts(rRes.data||[]);
   },[]);
   useEffect(()=>{ load(); const t=setInterval(load,5000); return ()=>clearInterval(t); },[load]);
-  useEffect(()=>{ if(endRef.current) endRef.current.scrollIntoView({behavior:"smooth"}); },[msgs.length]);
+  useEffect(()=>{ if(atBottom.current&&endRef.current) endRef.current.scrollIntoView({behavior:"smooth"}); },[msgs.length]);
+  const onScroll=()=>{ const el=logRef.current; if(el) atBottom.current = el.scrollHeight-el.scrollTop-el.clientHeight < 140; };
+
+  // build the reply tree
+  const {roots,kids,byId}=useMemo(()=>{
+    const byId={}; msgs.forEach(m=>{byId[m.id]=m;});
+    const kids={}, roots=[];
+    msgs.forEach(m=>{ if(m.parent_id&&byId[m.parent_id]) (kids[m.parent_id]=kids[m.parent_id]||[]).push(m); else roots.push(m); });
+    return {roots,kids,byId};
+  },[msgs]);
+
+  const reactMap=useMemo(()=>{
+    const map={};
+    reacts.forEach(r=>{
+      const byMsg=map[r.message_id]=map[r.message_id]||{};
+      const cell=byMsg[r.emoji]=byMsg[r.emoji]||{count:0,mine:false};
+      cell.count++; if(r.user_id===me.id) cell.mine=true;
+    });
+    return map;
+  },[reacts,me.id]);
+
+  const toggleReact=async(mid,emoji)=>{
+    const cell=reactMap[mid]&&reactMap[mid][emoji];
+    if(cell&&cell.mine) await sb.from("reactions").delete().eq("message_id",mid).eq("user_id",me.id).eq("emoji",emoji);
+    else await sb.from("reactions").insert({message_id:mid,user_id:me.id,emoji});
+    setOpenReact(null); load();
+  };
 
   const send=async(body,gif)=>{
     body=(body||"").trim();
     if(!body && !gif) return;
     setSending(true);
-    const {error}=await sb.from("messages").insert({user_id:me.id,display_name:me.name||"Anon",body:body||null,gif_url:gif||null});
+    const {error}=await sb.from("messages").insert({user_id:me.id,display_name:me.name||"Anon",body:body||null,gif_url:gif||null,parent_id:replyTo?replyTo.id:null});
     setSending(false);
     if(error){ flash("Couldn't send — try again"); return; }
-    setText(""); setShowEmoji(false); setShowGif(false); setGifQ(""); setGifs([]);
-    load();
+    setText(""); setShowEmoji(false); setShowGif(false); setGifQ(""); setGifs([]); setReplyTo(null);
+    atBottom.current=true; load();
   };
 
   const searchGifs=useCallback(async(q)=>{
@@ -705,18 +757,39 @@ function Chat({me,flash}){
   useEffect(()=>{ if(!showGif) return; const t=setTimeout(()=>searchGifs(gifQ),350); return ()=>clearTimeout(t); },[gifQ,showGif,searchGifs]);
 
   const del=async(id)=>{ await sb.from("messages").delete().eq("id",id); load(); };
+  const preview=(m)=> (m.body || (m.gif_url?"GIF":"")).slice(0,70);
+  const startReply=(m)=>{ setReplyTo({id:m.id,name:m.display_name||"Anon",preview:preview(m)}); if(taRef.current) taRef.current.focus(); };
+
+  const Node=(m,depth)=>{
+    const mine=m.user_id===me.id;
+    const children=kids[m.id]||[];
+    const parent=m.parent_id?byId[m.parent_id]:null;
+    const ind=Math.min(depth,5)*16;
+    const rx=reactMap[m.id];
+    return (<div key={m.id} className="cnode" style={{marginLeft:ind}}>
+      <div className={`cmsg ${mine?"mine":""} ${depth>0?"reply":""}`}>
+        {parent&&<div className="crefer">↩ <b>{parent.display_name||"Anon"}</b><span className="rfx" dir="auto">{preview(parent)}</span></div>}
+        <div className="cmeta"><span className="cname">{m.display_name||"Anon"}</span><span className="ctime">{fmtTime(m.created_at)}</span></div>
+        {m.body&&<div className="cbody" dir="auto">{m.body}</div>}
+        {m.gif_url&&<img className="cgif" src={m.gif_url} alt="gif" loading="lazy"/>}
+        {rx&&Object.keys(rx).length>0&&<div className="creacts">{Object.keys(rx).map(e=>(
+          <button key={e} className={`rbadge ${rx[e].mine?"mine":""}`} onClick={()=>toggleReact(m.id,e)}>{e}<span className="rc">{rx[e].count}</span></button>
+        ))}</div>}
+        {openReact===m.id&&<div className="repop">{REACTS.map(e=>(<button key={e} onClick={()=>toggleReact(m.id,e)}>{e}</button>))}</div>}
+        <div className="cactions">
+          <button className="clink" onClick={()=>setOpenReact(o=>o===m.id?null:m.id)}>😊 React</button>
+          <button className="clink" onClick={()=>startReply(m)}>↩ Reply</button>
+          {mine&&<button className="clink" onClick={()=>del(m.id)}>Delete</button>}
+        </div>
+      </div>
+      {children.map(c=>Node(c,depth+1))}
+    </div>);
+  };
 
   return (<div className="chat">
-    <div className="chatlog">
-      {msgs.length===0 && <div className="muted center" style={{margin:"auto"}}>No messages yet — kick it off! 🔥</div>}
-      {msgs.map(m=>{
-        const mine=m.user_id===me.id;
-        return (<div key={m.id} className={`cmsg ${mine?"mine":""}`}>
-          <div className="cmeta"><span className="cname">{m.display_name||"Anon"}</span><span className="ctime">{fmtTime(m.created_at)}</span>{mine&&<button className="cdel" onClick={()=>del(m.id)} title="Delete">×</button>}</div>
-          {m.body&&<div className="cbody" dir="auto">{m.body}</div>}
-          {m.gif_url&&<img className="cgif" src={m.gif_url} alt="gif" loading="lazy"/>}
-        </div>);
-      })}
+    <div className="chatlog" ref={logRef} onScroll={onScroll}>
+      {roots.length===0 && <div className="muted center">No messages yet — kick it off! 🔥</div>}
+      {roots.map(m=>Node(m,0))}
       <div ref={endRef}></div>
     </div>
 
@@ -729,10 +802,12 @@ function Chat({me,flash}){
         : <><div className="gifgrid">{gifs.map(g=>(<img key={g.id} className="gifthumb" src={g.thumb} onClick={()=>send("",g.full)} alt="gif"/>))}</div><div className="giphy-attrib">Powered by GIPHY</div></>}
     </div>}
 
+    {replyTo&&<div className="replybar"><span className="rtx muted tiny">Replying to <b style={{color:"var(--text)"}}>{replyTo.name}</b>{replyTo.preview?` · ${replyTo.preview}`:""}</span><button className="cdel" onClick={()=>setReplyTo(null)} title="Cancel reply">×</button></div>}
+
     <div className="composer">
       <button className={`cbtn ${showEmoji?"on":""}`} onClick={()=>{setShowEmoji(s=>!s);setShowGif(false);}} title="Emoji">😀</button>
       <button className={`cbtn ${showGif?"on":""}`} onClick={()=>{const n=!showGif;setShowGif(n);setShowEmoji(false);if(n)searchGifs("");}} title="GIF">GIF</button>
-      <textarea ref={taRef} className="cinput" rows="1" placeholder="Message… (Farsi or English)" dir="auto" value={text}
+      <textarea ref={taRef} className="cinput" rows="1" placeholder={replyTo?`Reply to ${replyTo.name}…`:"Message… (Farsi or English)"} dir="auto" value={text}
         onChange={e=>setText(e.target.value)}
         onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send(text);}}}/>
       <button className="csend" onClick={()=>send(text)} disabled={sending||!text.trim()}>{sending?"…":"Send"}</button>
