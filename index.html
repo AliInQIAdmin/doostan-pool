@@ -149,6 +149,20 @@ body{--bg:#080B14;--bg2:#0E1422;--surface:#141C2E;--surface2:#1A2438;--line:rgba
 .commishbox{margin-top:8px;border-top:1px dashed var(--line2);padding-top:6px}
 .commishnote{font-size:12px;color:var(--gold);background:rgba(255,201,77,.10);border:1px solid rgba(255,201,77,.3);border-radius:10px;padding:8px 11px;margin-bottom:12px}
 .apearly{font-size:10px;font-weight:800;color:var(--gold);margin-left:6px;letter-spacing:.3px}
+.hive{animation:rollfade .25s ease}
+.hivecard{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:9px}
+.hivehead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.hivetitle{font-weight:800;font-size:13.5px}
+.hrow{position:relative;display:flex;align-items:center;gap:9px;padding:7px 11px;border-radius:8px;background:var(--bg2);margin-bottom:4px;overflow:hidden}
+.hbar{position:absolute;left:0;top:0;bottom:0;background:rgba(255,53,86,.16);z-index:0;border-radius:8px}
+.hrow.hit .hbar{background:rgba(255,201,77,.24)}
+.hrow>*{position:relative;z-index:1}
+.hcount{font-weight:900;font-size:15px;color:var(--primary);min-width:20px;text-align:center}
+.hrow.hit .hcount{color:var(--gold)}
+.hlabel{font-size:13px;color:var(--text)}
+.hscore{font-weight:800;font-size:14px}
+.hcheck{margin-left:auto;font-size:10px;font-weight:800;color:var(--gold);letter-spacing:.3px}
+.hivetot{font-size:11px;color:var(--muted);margin-top:7px}
 .tab{flex:1;border:0;background:transparent;color:var(--muted);font-family:inherit;font-weight:700;font-size:13.5px;padding:11px 12px;border-radius:10px;cursor:pointer;transition:.18s;white-space:nowrap}
 .tab:hover{color:var(--text)}.tab.active{background:linear-gradient(135deg,var(--primary),var(--primary-d));color:#fff;box-shadow:0 6px 18px rgba(255,53,86,.3)}
 .legend{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px}
@@ -586,6 +600,7 @@ function Pool(){
       <button className={`tab ${tab==="picks"?"active":""}`} onClick={()=>setTab("picks")}>Picks</button>
       <button className={`tab ${tab==="board"?"active":""}`} onClick={()=>{loadAll(me.id);setTab("board");}}>Leaderboard</button>
       <button className={`tab ${tab==="picksall"?"active":""}`} onClick={()=>{loadAll(me.id);setTab("picksall");}}>All Picks</button>
+      <button className={`tab ${tab==="hive"?"active":""}`} onClick={()=>{loadAll(me.id);setTab("hive");}}>Hive Mind</button>
       <button className={`tab ${tab==="tables"?"active":""}`} onClick={()=>{loadAll(me.id);setTab("tables");}}>Tables</button>
       <button className={`tab ${tab==="odds"?"active":""}`} onClick={()=>{loadAll(me.id);setTab("odds");}}>Odds</button>
       <button className={`tab ${tab==="bet"?"active":""}`} onClick={()=>setTab("bet")} dir="auto">کازینوی کُری</button>
@@ -675,6 +690,30 @@ function Pool(){
                     {res&&<span className={`appts ${earned.tier}`}>{earned.total>0?"+"+earned.total:"0"}</span>}
                   </div>);
                 })}</div>}
+        </div>);
+      })}
+    </div>}
+
+    {tab==="hive"&&<div className="hive">
+      <p className="muted tiny" style={{marginBottom:12}}>The crowd's predictions, totaled up — no names, just how many picked each score. See where everyone's leaning. 🐝</p>
+      {MATCHES.map(m=>{
+        const counts={}; let total=0;
+        players.forEach(pl=>{const pk=allPicks[pl.id]&&allPicks[pl.id][m.id]; if(pk&&pk.h!=null&&pk.a!=null){const k=pk.h+"–"+pk.a; counts[k]=(counts[k]||0)+1; total++;}});
+        const rows=Object.entries(counts).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
+        const max=rows.length?rows[0][1]:1; const res=results[m.id]; const rk=res?res.h+"–"+res.a:null;
+        return (<div key={m.id} className="hivecard">
+          <div className="hivehead">
+            <span className="hivetitle">{FLAGS[m.h]||"⚽"} {m.h} <span className="apv">v</span> {m.a} {FLAGS[m.a]||"⚽"}</span>
+            {res?<span className="apres">{res.h}–{res.a}</span>:<span className="apwhen">{m.when}</span>}
+          </div>
+          {total===0
+            ? <div className="aphidden">No picks in yet.</div>
+            : rows.map(([k,c])=>(<div key={k} className={`hrow ${k===rk?"hit":""}`}>
+                <span className="hbar" style={{width:(c/max*100)+"%"}}></span>
+                <span className="hcount">{c}</span><span className="hlabel">picked <span className="hscore">{k}</span></span>
+                {k===rk&&<span className="hcheck">✓ result</span>}
+              </div>))}
+          {total>0&&<div className="hivetot">{total} pick{total!==1?"s":""} total</div>}
         </div>);
       })}
     </div>}
