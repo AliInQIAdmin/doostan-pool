@@ -146,6 +146,7 @@ body{--bg:#080B14;--bg2:#0E1422;--surface:#141C2E;--surface2:#1A2438;--line:rgba
 .appts.gd{color:var(--green)}
 .appts.result{color:#7fd0ff}
 .appts.miss{color:var(--muted)}
+.commishbox{margin-top:8px;border-top:1px dashed var(--line2);padding-top:6px}
 .tab{flex:1;border:0;background:transparent;color:var(--muted);font-family:inherit;font-weight:700;font-size:13.5px;padding:11px 12px;border-radius:10px;cursor:pointer;transition:.18s;white-space:nowrap}
 .tab:hover{color:var(--text)}.tab.active{background:linear-gradient(135deg,var(--primary),var(--primary-d));color:#fff;box-shadow:0 6px 18px rgba(255,53,86,.3)}
 .legend{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px}
@@ -751,7 +752,7 @@ function Pool(){
       <div className="savebar"><button className="btn btn-primary big" onClick={saveResults} disabled={busy}>{busy?"Saving…":"Save results"}</button></div>
     </div>}
 
-    {tab==="bet"&&<Betting me={me} flash={flash}/>}
+    {tab==="bet"&&<Betting me={me} flash={flash} commish={isCommish}/>}
 
     {tab==="chat"&&<div className="majlis">
       <p className="muted tiny" style={{marginBottom:12}}>Talk trash, celebrate, and argue the calls — in Farsi or English, with emojis and GIFs. 🔥</p>
@@ -762,11 +763,11 @@ function Pool(){
   </div>);
 }
 
-function Betting({me,flash}){
+function Betting({me,flash,commish}){
   const [bets,setBets]=useState([]);
+  const [board,setBoard]=useState([]);
   const [odds,setOdds]=useState({});
   const [results,setResults]=useState({});
-  const [profs,setProfs]=useState({});
   const [sel,setSel]=useState({});
   const [stakeIn,setStakeIn]=useState({});
   const [busy,setBusy]=useState(null);
@@ -774,16 +775,16 @@ function Betting({me,flash}){
   const M=useMemo(()=>Object.fromEntries(MATCHES.map(m=>[m.id,m])),[]);
 
   const load=useCallback(async()=>{
-    const [b,o,r,p]=await Promise.all([
+    const [b,o,r,bd]=await Promise.all([
       sb.from("bets").select("*"),
       sb.from("match_odds").select("*"),
       sb.from("results").select("*"),
-      sb.from("profiles").select("id,display_name"),
+      sb.rpc("tycoon_board"),
     ]);
     setBets(b.data||[]);
     const om={}; (o.data||[]).forEach(x=>om[x.match_id]=x); setOdds(om);
     const rm={}; (r.data||[]).forEach(x=>rm[x.match_id]={h:x.home,a:x.away}); setResults(rm);
-    const pm={}; (p.data||[]).forEach(x=>pm[x.id]=x.display_name); setProfs(pm);
+    setBoard((bd.data||[]).slice().sort((a,b)=>Number(b.balance)-Number(a.balance)||(a.name||"").localeCompare(b.name||"")));
   },[]);
   useEffect(()=>{ load(); const t=setInterval(load,15000); return ()=>clearInterval(t); },[load]);
   useEffect(()=>{ const t=setInterval(()=>setTick(Date.now()),30000); return ()=>clearInterval(t); },[]);
@@ -792,18 +793,12 @@ function Betting({me,flash}){
   const decOdds=(pct)=> (pct&&pct>0) ? Math.min(20,Math.max(1.05, Math.round(100/pct*100)/100)) : null;
   const outcomeOf=(r)=> r.h>r.a?"home": r.h<r.a?"away":"draw";
   const betNet=(bet)=>{ const r=results[bet.match_id]; if(!r) return null; return bet.pick===outcomeOf(r) ? Math.round(bet.stake*(bet.odds-1)) : -bet.stake; };
-  const balanceOf=(uid)=>{ let bal=5000; bets.filter(b=>b.user_id===uid).forEach(b=>{const n=betNet(b); if(n!=null)bal+=n;}); return bal; };
 
   const myBets=bets.filter(b=>b.user_id===me.id).sort((a,b)=>new Date(b.created_at)-new Date(a.created_at));
   const myByMatch={}; myBets.forEach(b=>{myByMatch[b.match_id]=b;});
-  const myBalance=balanceOf(me.id);
+  const meRow=board.find(t=>t.user_id===me.id);
+  const myBalance=meRow?Number(meRow.balance):5000;
   const pendingStake=myBets.filter(b=>!results[b.match_id]).reduce((s,b)=>s+b.stake,0);
-
-  const tycoons=useMemo(()=>{
-    const ids=new Set(bets.map(b=>b.user_id)); ids.add(me.id);
-    return [...ids].map(uid=>({uid,name:profs[uid]||(uid===me.id?(me.name||"You"):"Player"),bal:balanceOf(uid),n:bets.filter(b=>b.user_id===uid).length}))
-      .sort((a,b)=>b.bal-a.bal||a.name.localeCompare(b.name));
-  },[bets,results,profs,tick]);
 
   const sideLabel=(m,side)=> side==="home"?m.h : side==="away"?m.a : "Draw";
   const place=async(mid)=>{
@@ -867,12 +862,26 @@ function Betting({me,flash}){
 
     <h3 className="bsec">🏆 Tycoon leaderboard</h3>
     <div className="tycoon">
-      {tycoons.map((t,i)=>(<div key={t.uid} className={`tyrow ${t.uid===me.id?"me":""}`}>
-        <span className="tyrk">{i+1}</span><span className="tyname" dir="auto">{t.name}{t.uid===me.id?" (you)":""}</span>
-        <span className={`tybal ${t.bal<0?"neg":""}`}>{t.bal.toLocaleString()}</span>
+      {board.map((t,i)=>(<div key={t.user_id} className={`tyrow ${t.user_id===me.id?"me":""}`}>
+        <span className="tyrk">{i+1}</span><span className="tyname" dir="auto">{(t.name||"Player")}{t.user_id===me.id?" (you)":""}</span>
+        <span className={`tybal ${Number(t.balance)<0?"neg":""}`}>{Number(t.balance).toLocaleString()}</span>
       </div>))}
     </div>
-    <div className="muted tiny" style={{marginTop:10}}>Payout odds come from the match line — a longer shot pays more. Bets lock at kickoff and settle automatically when the final score posts.</div>
+    <div className="muted tiny" style={{marginTop:10}}>Payout odds come from the match line — a longer shot pays more. Bets lock at kickoff and settle automatically when the score posts. Each player's individual bets are private to them.</div>
+
+    {commish&&<div className="commishbox">
+      <h3 className="bsec" style={{marginTop:24,color:"var(--gold)"}}>👑 Commissioner view — all bets</h3>
+      <div className="muted tiny" style={{marginBottom:10}}>Only your login can see this. Players cannot see each other's bets.</div>
+      {bets.length===0
+        ? <div className="muted tiny">No bets placed yet.</div>
+        : bets.slice().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(b=>{
+            const m=M[b.match_id]; const net=betNet(b); const status=net==null?"pending":net>=0?"won":"lost";
+            return (<div key={b.id} className={`mybet ${status}`}>
+              <div><div className="mbteams" dir="auto">{b.display_name||"Player"}</div><div className="mbmeta" dir="auto">{m?`${m.h} v ${m.a}`:b.match_id} · {b.stake.toLocaleString()} on {m?sideLabel(m,b.pick):b.pick} @ {(+b.odds).toFixed(2)}×</div></div>
+              <div className="mbresult">{status==="pending"?<span className="pend">open</span>:<span className={status}>{fmtK(net)}</span>}</div>
+            </div>);
+          })}
+    </div>}
   </div>);
 }
 
