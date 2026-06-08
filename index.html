@@ -147,6 +147,8 @@ body{--bg:#080B14;--bg2:#0E1422;--surface:#141C2E;--surface2:#1A2438;--line:rgba
 .appts.result{color:#7fd0ff}
 .appts.miss{color:var(--muted)}
 .commishbox{margin-top:8px;border-top:1px dashed var(--line2);padding-top:6px}
+.commishnote{font-size:12px;color:var(--gold);background:rgba(255,201,77,.10);border:1px solid rgba(255,201,77,.3);border-radius:10px;padding:8px 11px;margin-bottom:12px}
+.apearly{font-size:10px;font-weight:800;color:var(--gold);margin-left:6px;letter-spacing:.3px}
 .tab{flex:1;border:0;background:transparent;color:var(--muted);font-family:inherit;font-weight:700;font-size:13.5px;padding:11px 12px;border-radius:10px;cursor:pointer;transition:.18s;white-space:nowrap}
 .tab:hover{color:var(--text)}.tab.active{background:linear-gradient(135deg,var(--primary),var(--primary-d));color:#fff;box-shadow:0 6px 18px rgba(255,53,86,.3)}
 .legend{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:14px}
@@ -652,18 +654,19 @@ function Pool(){
 
     {tab==="picksall"&&<div className="allpicks">
       <p className="muted tiny" style={{marginBottom:12}}>Everyone's predictions. Each match stays hidden until kickoff so nobody can copy — the result and points appear once the score is in.</p>
+      {isCommish&&<div className="commishnote">👑 Commissioner: you can see every pick before kickoff. Everyone else only sees a match after it kicks off.</div>}
       {MATCHES.map(m=>{
-        const locked=isLocked(m); const res=results[m.id];
+        const locked=isLocked(m); const reveal=locked||isCommish; const res=results[m.id];
         const here=players.map(pl=>({pl,pk:allPicks[pl.id]&&allPicks[pl.id][m.id]})).filter(x=>x.pk);
         return (<div key={m.id} className="apmatch">
           <div className="aphead">
-            <span className="aptitle">{FLAGS[m.h]||"⚽"} {m.h} <span className="apv">v</span> {m.a} {FLAGS[m.a]||"⚽"}</span>
+            <span className="aptitle">{FLAGS[m.h]||"⚽"} {m.h} <span className="apv">v</span> {m.a} {FLAGS[m.a]||"⚽"}{isCommish&&!locked&&<span className="apearly">👑 early view</span>}</span>
             {res?<span className="apres">{res.h}–{res.a}</span>:<span className="apwhen">{m.when}</span>}
           </div>
-          {!locked
+          {!reveal
             ? <div className="aphidden">🔒 Reveals at kickoff · {here.length} pick{here.length!==1?"s":""} in</div>
             : here.length===0
-              ? <div className="aphidden">No picks were made.</div>
+              ? <div className="aphidden">No picks {locked?"were":"yet"} made.</div>
               : <div className="aplist">{here.map(({pl,pk})=>{
                   let earned=null; if(res){const e=scorePick({h:pk.h,a:pk.a},res); earned={...e,total:e.pts*(pk.banker?2:1)};}
                   return (<div key={pl.id} className={`aprow ${pl.id===me.id?"me":""}`}>
