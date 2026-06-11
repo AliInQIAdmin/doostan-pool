@@ -404,6 +404,7 @@ function Pool(){
   const [fPass,setFPass]=useState(""); const [fPool,setFPool]=useState("World Cup 2026 Pool");
   const [fInvite,setFInvite]=useState("");
   const [busy,setBusy]=useState(false);
+  const [recovery,setRecovery]=useState(false); const [newPass,setNewPass]=useState("");
 
   const flash=(m)=>{setToast(m);setTimeout(()=>setToast(""),2800);};
 
@@ -438,7 +439,8 @@ function Pool(){
       else { await loadAll(null); }
       setBooting(false);
     })();
-    sub = sb.auth.onAuthStateChange((_e,session)=>{
+    sub = sb.auth.onAuthStateChange((evt,session)=>{
+      if(evt==="PASSWORD_RECOVERY"){ setRecovery(true); setBooting(false); return; }
       if(session) hydrateMe(session.user); else { setMe(null); }
     });
     const t=setInterval(()=>setNow(Date.now()),1000);
@@ -493,6 +495,24 @@ function Pool(){
       }
     }catch(e){ flash("Something went wrong — try again."); }
     finally{ setBusy(false); }
+  };
+  const forgotPass=async()=>{
+    const email=fEmail.trim().toLowerCase();
+    if(!email) return flash("Type your email above first, then tap reset");
+    setBusy(true);
+    const { error } = await sb.auth.resetPasswordForEmail(email,{ redirectTo: window.location.origin });
+    setBusy(false);
+    flash(error ? (error.message||"Couldn't send reset email") : "Check your email for a reset link 📧");
+  };
+  const doReset=async()=>{
+    if((newPass||"").length<6) return flash("New password must be at least 6 characters");
+    setBusy(true);
+    const { data, error } = await sb.auth.updateUser({ password:newPass });
+    setBusy(false);
+    if(error) return flash(error.message||"Couldn't update password");
+    setNewPass(""); setRecovery(false);
+    if(data&&data.user){ await hydrateMe(data.user); }
+    flash("Password updated — you're in ✓");
   };
   const logout=async()=>{ await sb.auth.signOut(); setMe(null); setMyS({}); setMyB({}); setTab("picks"); };
 
@@ -555,6 +575,17 @@ function Pool(){
   const decided=Object.keys(results).length;
   const myMade=Object.values(myS).filter(v=>v&&v.h!==""&&v.a!==""&&v.h!=null&&v.a!=null).length;
 
+  if(recovery) return (<div className="container">
+    <div className="join">
+      <div className="kicker">RESET PASSWORD</div>
+      <h1 className="display join-title">Set a new password</h1>
+      <p className="muted join-sub">Pick a new password for your account — you'll be logged straight in.</p>
+      <input className="field" type="password" placeholder="New password (6+ characters)" value={newPass} onChange={e=>setNewPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doReset()} />
+      <button className="btn btn-primary big" onClick={doReset} disabled={busy}>{busy?"…":"Save new password →"}</button>
+    </div>
+    {toast&&<div className="toast">{toast}</div>}
+  </div>);
+
   if(booting) return <div className="container"><div className="center muted">Loading the pool…</div></div>;
 
   // ===== AUTH =====
@@ -572,6 +603,7 @@ function Pool(){
         <input className="field" type="password" placeholder="Password (6+ characters)" value={fPass} onChange={e=>setFPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doAuth()} />
         <button className="btn btn-primary big" onClick={doAuth} disabled={busy}>{busy?"…":(authMode==="login"?"Log In →":"Sign Up →")}</button>
         <button className="btn-link" onClick={()=>setAuthMode(authMode==="login"?"signup":"login")}>{authMode==="login"?"Need an account? Sign up":"Have an account? Log in"}</button>
+        {authMode==="login"&&<button className="btn-link" onClick={forgotPass} disabled={busy}>Forgot password?</button>}
         <div className="note muted">Your login is secured by Supabase. Share this site's link with your group — everyone signs up with their own email and the leaderboard is shared.</div>
       </div>
       {toast&&<div className="toast">{toast}</div>}
