@@ -193,7 +193,8 @@ body{--bg:#080B14;--bg2:#0E1422;--surface:#141C2E;--surface2:#1A2438;--line:rgba
 .lockpill{font-size:10px;letter-spacing:1px;font-weight:800;color:var(--muted);border:1px solid var(--line2);padding:2px 7px;border-radius:6px}
 .pts{font-family:'Anton',sans-serif;font-size:15px;padding:2px 9px;border-radius:7px}
 .pts.exact{color:#04150e;background:var(--green)}.pts.gd{color:#06121f;background:#8ad0ff}.pts.result{color:#03101f;background:var(--blue)}.pts.miss{color:var(--muted);background:var(--surface2)}
-.savebar{position:sticky;bottom:14px;margin-top:20px;display:flex;justify-content:center}
+.savebar{position:sticky;bottom:14px;margin-top:20px;display:flex;justify-content:center;gap:10px}
+.btn-smart{background:rgba(255,201,77,.14);color:var(--gold);border:1.5px solid rgba(255,201,77,.5)}
 .btn{font-family:inherit;font-weight:800;border:0;cursor:pointer;border-radius:12px;transition:.18s}
 .btn-primary{background:linear-gradient(135deg,var(--primary),var(--primary-d));color:#fff;box-shadow:0 10px 30px rgba(255,53,86,.35)}
 .btn-primary:hover:not(:disabled){transform:translateY(-1px)}.btn-primary:disabled{background:var(--surface2);color:var(--muted);box-shadow:none;cursor:default}
@@ -519,6 +520,25 @@ function Pool(){
   // ---- PICKS ----
   const setScore=(mid,side,val)=>{ if(isLocked(matchById[mid]))return; let n=val===""?"":Math.max(0,Math.min(99,parseInt(val,10)||0)); setMyS(p=>({...p,[mid]:{...p[mid],[side]:n}})); setDirty(true); };
   const toggleBanker=(g,mid)=>{ if(isLocked(matchById[mid]))return; setMyB(p=>{const n={...p}; n[g]===mid?delete n[g]:n[g]=mid; return n;}); setDirty(true); };
+  const smartFill=()=>{
+    const next={...myS}; let filled=0;
+    for(const m of MATCHES){
+      if(isLocked(m)) continue;
+      const cur=next[m.id];
+      if(cur && cur.h!=="" && cur.a!=="" && cur.h!=null && cur.a!=null) continue; // keep picks already made
+      const o=odds[m.id]; let h=1,a=1;
+      if(o && o.h!=null && o.a!=null){
+        const hp=+o.h, dp=+(o.d||0), ap=+o.a;
+        if(dp>=hp && dp>=ap){ h=1;a=1; }
+        else if(Math.abs(hp-ap)<=8){ h=1;a=1; }
+        else if(hp>ap){ h=2; a=(hp-ap)>=25?0:1; }
+        else { a=2; h=(ap-hp)>=25?0:1; }
+      }
+      next[m.id]={h,a}; filled++;
+    }
+    if(filled>0){ setMyS(next); setDirty(true); flash(`Smart Fill added ${filled} pick${filled!==1?"s":""} — review, then Save`); }
+    else flash("Nothing to fill — your open matches already have picks.");
+  };
   const savePicks=async()=>{
     if(!me)return; setBusy(true);
     const rows=[];
@@ -686,7 +706,7 @@ function Pool(){
           })}
         </div>);
       })}
-      <div className="savebar"><button className="btn btn-primary big" onClick={savePicks} disabled={!dirty||busy}>{busy?"Saving…":(dirty?"Save my picks":"All saved ✓")}</button></div>
+      <div className="savebar">{isCommish&&<button className="btn btn-smart big" onClick={smartFill}>✨ Smart Fill</button>}<button className="btn btn-primary big" onClick={savePicks} disabled={!dirty||busy}>{busy?"Saving…":(dirty?"Save my picks":"All saved ✓")}</button></div>
     </>}
 
     {tab==="board"&&<div className="board">
