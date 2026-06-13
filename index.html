@@ -287,7 +287,7 @@ const MATCHES = [
   {id:"C5",g:"C",h:"Scotland",a:"Brazil",utc:"2026-06-24T22:00:00Z",when:"Jun 24 · 6:00 PM ET",v:"Hard Rock Stadium, Miami"},
   {id:"C6",g:"C",h:"Morocco",a:"Haiti",utc:"2026-06-24T22:00:00Z",when:"Jun 24 · 6:00 PM ET",v:"Mercedes-Benz Stadium, Atlanta"},
   {id:"D1",g:"D",h:"United States",a:"Paraguay",utc:"2026-06-13T01:00:00Z",when:"Jun 12 · 9:00 PM ET",v:"SoFi Stadium, Inglewood"},
-  {id:"D2",g:"D",h:"Australia",a:"Türkiye",utc:"2026-06-13T04:00:00Z",when:"Jun 13 · 12:00 AM ET",v:"BC Place, Vancouver"},
+  {id:"D2",g:"D",h:"Australia",a:"Türkiye",utc:"2026-06-14T04:00:00Z",when:"Jun 14 · 12:00 AM ET",v:"BC Place, Vancouver"},
   {id:"D3",g:"D",h:"United States",a:"Australia",utc:"2026-06-19T19:00:00Z",when:"Jun 19 · 3:00 PM ET",v:"Lumen Field, Seattle"},
   {id:"D4",g:"D",h:"Türkiye",a:"Paraguay",utc:"2026-06-20T03:00:00Z",when:"Jun 19 · 11:00 PM ET",v:"Levi's Stadium, Santa Clara"},
   {id:"D5",g:"D",h:"Türkiye",a:"United States",utc:"2026-06-26T02:00:00Z",when:"Jun 25 · 10:00 PM ET",v:"SoFi Stadium, Inglewood"},
@@ -301,7 +301,7 @@ const MATCHES = [
   {id:"F1",g:"F",h:"Netherlands",a:"Japan",utc:"2026-06-14T20:00:00Z",when:"Jun 14 · 4:00 PM ET",v:"AT&T Stadium, Arlington"},
   {id:"F2",g:"F",h:"Sweden",a:"Tunisia",utc:"2026-06-15T02:00:00Z",when:"Jun 14 · 10:00 PM ET",v:"Estadio BBVA, Monterrey"},
   {id:"F3",g:"F",h:"Netherlands",a:"Sweden",utc:"2026-06-20T17:00:00Z",when:"Jun 20 · 1:00 PM ET",v:"NRG Stadium, Houston"},
-  {id:"F4",g:"F",h:"Tunisia",a:"Japan",utc:"2026-06-20T04:00:00Z",when:"Jun 20 · 12:00 AM ET",v:"Estadio BBVA, Monterrey"},
+  {id:"F4",g:"F",h:"Tunisia",a:"Japan",utc:"2026-06-21T04:00:00Z",when:"Jun 21 · 12:00 AM ET",v:"Estadio BBVA, Monterrey"},
   {id:"F5",g:"F",h:"Japan",a:"Sweden",utc:"2026-06-25T23:00:00Z",when:"Jun 25 · 7:00 PM ET",v:"AT&T Stadium, Arlington"},
   {id:"F6",g:"F",h:"Tunisia",a:"Netherlands",utc:"2026-06-25T23:00:00Z",when:"Jun 25 · 7:00 PM ET",v:"Arrowhead Stadium, Kansas City"},
   {id:"G1",g:"G",h:"Belgium",a:"Egypt",utc:"2026-06-15T19:00:00Z",when:"Jun 15 · 3:00 PM ET",v:"Lumen Field, Seattle"},
@@ -392,6 +392,7 @@ function Pool(){
   const [allPicks,setAllPicks]=useState({});    // {uid:{mid:{h,a,banker}}}
   const [results,setResults]=useState({});      // {mid:{h,a}}
   const [odds,setOdds]=useState({});             // {mid:{h,d,a}} market probabilities
+  const [kickoffs,setKickoffs]=useState({});     // {mid: ISO} real kickoff times from the live feed
   const [myS,setMyS]=useState({}); const [myB,setMyB]=useState({});
   const [dirty,setDirty]=useState(false);
   const [tab,setTab]=useState("picks");
@@ -410,13 +411,15 @@ function Pool(){
   const flash=(m)=>{setToast(m);setTimeout(()=>setToast(""),2800);};
 
   const loadAll = useCallback(async (uid)=>{
-    const [{data:profs},{data:picksRows},{data:resRows},{data:pm}] = await Promise.all([
+    const [{data:profs},{data:picksRows},{data:resRows},{data:pm},{data:mt}] = await Promise.all([
       sb.from("profiles").select("*"),
       sb.from("picks").select("*"),
       sb.from("results").select("*"),
       sb.from("pool_meta").select("*").eq("id",1).maybeSingle(),
+      sb.from("matches").select("id,kickoff"),
     ]);
     setPlayers((profs||[]).map(p=>({id:p.id,name:p.display_name})));
+    const km={}; (mt||[]).forEach(r=>{ if(r.kickoff) km[r.id]=r.kickoff; }); setKickoffs(km);
     const map={};
     (picksRows||[]).forEach(r=>{(map[r.user_id]??={})[r.match_id]={h:r.home,a:r.away,banker:r.is_banker};});
     setAllPicks(map);
@@ -467,7 +470,7 @@ function Pool(){
     return ()=>{clearInterval(poll);window.removeEventListener("focus",onFocus);};
   },[me,loadAll]);
 
-  const isLocked=(m)=> now>=new Date(m.utc).getTime();
+  const isLocked=(m)=>{ const k=kickoffs[m.id]; const t=k?Date.parse(k):Date.parse(m.utc); return now>=t; };
   const isCommish = me && commissioner===me.id;
 
   // ---- AUTH ----
