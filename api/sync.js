@@ -63,9 +63,9 @@ module.exports = async (req, res) => {
     const r = await fetch(`https://v3.football.api-sports.io/${path}`, { headers: { "x-apisports-key": API_KEY } });
     return r.json();
   };
-  const sbUpsert = async (table, rows) => {
+  const sbUpsert = async (table, rows, conflict = "match_id") => {
     if (!rows.length) return { count: 0 };
-    const r = await fetch(`${SB_URL}/rest/v1/${table}?on_conflict=match_id`, {
+    const r = await fetch(`${SB_URL}/rest/v1/${table}?on_conflict=${conflict}`, {
       method: "POST",
       headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
       body: JSON.stringify(rows),
@@ -81,7 +81,7 @@ module.exports = async (req, res) => {
     }
 
     const FINISHED = new Set(["FT", "AET", "PEN"]);
-    const resultsRows = [], upcoming = [], unmatched = [];
+    const resultsRows = [], upcoming = [], unmatched = [], kickoffRows = [];
 
     for (const f of fixtures) {
       const hn = canon(f.teams.home.name), an = canon(f.teams.away.name);
@@ -92,6 +92,7 @@ module.exports = async (req, res) => {
         resultsRows.push({ match_id: m.id, home: same ? f.goals.home : f.goals.away, away: same ? f.goals.away : f.goals.home });
       }
       const ts = (f.fixture.timestamp || 0) * 1000;
+      if (ts > 0) kickoffRows.push({ id: m.id, kickoff: new Date(ts).toISOString() });
       if (ts > Date.now() && ts - Date.now() < 48 * 3600 * 1000) upcoming.push({ id: m.id, fixtureId: f.fixture.id, same });
     }
 
@@ -112,12 +113,15 @@ module.exports = async (req, res) => {
 
     const r1 = await sbUpsert("results", resultsRows);
     const r2 = await sbUpsert("match_odds", oddsRows);
+    let r3 = { count: 0 };
+    try { r3 = await sbUpsert("matches", kickoffRows, "id"); } catch (e) { r3 = { error: String(e) }; }
 
     return res.status(200).json({
       ok: true,
       fixtures_seen: fixtures.length,
       results_written: resultsRows.length,
       odds_written: oddsRows.length,
+      kickoffs_written: r3.count || 0,
       results_db: r1, odds_db: r2,
       unmatched_team_names: unmatched, // <-- if any names show here, send them to me and I'll add the alias
     });
