@@ -412,13 +412,17 @@ function Pool(){
   const flash=(m)=>{setToast(m);setTimeout(()=>setToast(""),2800);};
 
   const loadAll = useCallback(async (uid)=>{
-    const [{data:profs},{data:picksRows},{data:resRows},{data:pm},{data:mt}] = await Promise.all([
+    const [{data:profs},{data:resRows},{data:pm},{data:mt}] = await Promise.all([
       sb.from("profiles").select("*"),
-      sb.from("picks").select("*"),
       sb.from("results").select("*"),
       sb.from("pool_meta").select("*").eq("id",1).maybeSingle(),
       sb.from("matches").select("id,kickoff"),
     ]);
+    // Picks can exceed Supabase's 1000-row response cap, so page through ALL of them.
+    let picksRows=[]; { const page=1000; let from=0;
+      while(true){ const { data } = await sb.from("picks").select("*").range(from,from+page-1);
+        if(!data||!data.length) break; picksRows=picksRows.concat(data);
+        if(data.length<page) break; from+=page; } }
     setPlayers((profs||[]).map(p=>({id:p.id,name:p.display_name})));
     const km={}; (mt||[]).forEach(r=>{ if(r.kickoff) km[r.id]=r.kickoff; }); setKickoffs(km);
     const map={};
