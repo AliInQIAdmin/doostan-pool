@@ -362,9 +362,10 @@ function fmtCountdown(ms){
   return m+"m "+sec+"s";
 }
 function scorePick(pk,res){
-  if(pk.h===res.h&&pk.a===res.a) return {pts:PTS.EXACT,tier:"exact"};
-  if(outcome(pk.h,pk.a)!==outcome(res.h,res.a)) return {pts:0,tier:"miss"};
-  if(pk.h-pk.a===res.h-res.a) return {pts:PTS.GD,tier:"gd"};
+  const ph=+pk.h, pa=+pk.a, rh=+res.h, ra=+res.a;
+  if(ph===rh&&pa===ra) return {pts:PTS.EXACT,tier:"exact"};
+  if(outcome(ph,pa)!==outcome(rh,ra)) return {pts:0,tier:"miss"};
+  if(ph-pa===rh-ra) return {pts:PTS.GD,tier:"gd"};
   return {pts:PTS.RESULT,tier:"result"};
 }
 
