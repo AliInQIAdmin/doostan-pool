@@ -31,6 +31,10 @@ body{--bg:#080B14;--bg2:#0E1422;--surface:#141C2E;--surface2:#1A2438;--line:rgba
 .container{position:relative;max-width:760px;margin:0 auto;padding:28px 18px 90px}
 .display{font-family:'Anton',Impact,sans-serif;font-weight:400;letter-spacing:.5px;line-height:.95;text-transform:uppercase}
 .muted{color:var(--muted)}.tiny{font-size:12px}.center{text-align:center;padding:40px 0}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:18px 2px 10px;font-weight:800;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+.section-head.up{margin:2px 2px 10px;color:var(--gold)}
+.section-head.all{color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
+.upcoming{display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid rgba(255,201,77,.34);border-radius:16px;background:rgba(255,201,77,.06);margin-bottom:6px}
 .kicker{font-size:11px;letter-spacing:3px;color:var(--primary);font-weight:800;text-transform:uppercase}
 .head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:18px}
 .title{font-size:clamp(28px,7vw,52px);background:linear-gradient(92deg,#fff 30%,#FFD6DD 60%,var(--primary));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
@@ -350,6 +354,10 @@ const BANNER = [
   "بسم‌الله، شرط می‌بندی؟",
   "Thank You For Your Vote",
   "چو باد اندر شکم پیچد فرو هِل که باد اندر شکم بار است بر دل",
+  "Whose Your Daddy ....",
+  "بابات کیه؟",
+  "کی رئیسه؟",
+  "کی حرف آخر رو می‌زنه؟",
 ];
 const outcome = (h,a)=> h>a?"H":h<a?"A":"D";
 const matchById = Object.fromEntries(MATCHES.map(m=>[m.id,m]));
@@ -475,7 +483,8 @@ function Pool(){
     return ()=>{clearInterval(poll);window.removeEventListener("focus",onFocus);};
   },[me,loadAll]);
 
-  const isLocked=(m)=>{ const k=kickoffs[m.id]; const t=k?Date.parse(k):Date.parse(m.utc); return now>=t; };
+  const koTime=(m)=> kickoffs[m.id]?Date.parse(kickoffs[m.id]):Date.parse(m.utc);
+  const isLocked=(m)=> now>=koTime(m);
   const isCommish = me && commissioner===me.id;
 
   // ---- AUTH ----
@@ -603,6 +612,38 @@ function Pool(){
   const decided=Object.keys(results).length;
   const myMade=Object.values(myS).filter(v=>v&&v.h!==""&&v.a!==""&&v.h!=null&&v.a!=null).length;
 
+  const renderMatch=(m)=>{
+    const g=m.g; const locked=isLocked(m); const pk=myS[m.id]||{}; const res=results[m.id]; const isB=myB[g]===m.id;
+    let earned=null;
+    if(res&&pk.h!=null&&pk.a!=null&&pk.h!==""&&pk.a!==""){const e=scorePick({h:+pk.h,a:+pk.a},res);earned={...e,total:e.pts*(isB?2:1)};}
+    const diff=koTime(m)-now;
+    return (<div key={m.id} className={`match ${locked?"locked":""}`}>
+      <div className="teams">
+        <div className="team home"><span className="tname">{m.h}</span><span className="flag">{FLAGS[m.h]||"⚽"}</span></div>
+        <div className="scorebox">
+          <input className="num" type="number" min="0" max="99" value={pk.h??""} disabled={locked} onChange={e=>setScore(m.id,"h",e.target.value)}/>
+          <span className="colon">:</span>
+          <input className="num" type="number" min="0" max="99" value={pk.a??""} disabled={locked} onChange={e=>setScore(m.id,"a",e.target.value)}/>
+        </div>
+        <div className="team away"><span className="flag">{FLAGS[m.a]||"⚽"}</span><span className="tname">{m.a}</span></div>
+      </div>
+      {!res && (
+        <div className={`countdown ${(!locked&&diff<3600000)?"soon":""} ${locked?"started":""}`}>
+          {locked ? "● Kicked off — picks locked" : "⏱ Kicks off in "+fmtCountdown(diff)}
+        </div>)}
+      <div className="match-foot">
+        <button className={`bankbtn ${isB?"on":""}`} disabled={locked} onClick={()=>toggleBanker(g,m.id)}>★ Banker</button>
+        <span className="foot-right">
+          <span className="muted tiny">{m.when}</span>
+          {res&&<span className="final">FT {res.h}–{res.a}</span>}
+          {locked&&!res&&<span className="lockpill">LOCKED</span>}
+          {earned&&<span className={`pts ${earned.tier}`}>{earned.total>0?`+${earned.total}`:"+0"}{isB&&earned.pts>0?"★":""}</span>}
+        </span>
+      </div>
+    </div>);
+  };
+  const next48=MATCHES.filter(m=>{const t=koTime(m);return t>now && (t-now)<=48*3600*1000;}).sort((a,b)=>koTime(a)-koTime(b));
+
   if(recovery) return (<div className="container">
     <div className="join">
       <div className="kicker">RESET PASSWORD</div>
@@ -674,6 +715,11 @@ function Pool(){
         <span className="pill result">Result 2</span><span className="pill bank">★ Banker 2×</span>
         <span className="muted" style={{marginLeft:"auto"}}>locks at kickoff</span>
       </div>
+      {next48.length>0&&<div className="upcoming">
+        <div className="section-head up"><span>⏱ Next 48 hours</span><span className="muted tiny">{next48.length} match{next48.length!==1?"es":""} · get your picks in</span></div>
+        {next48.map(m=>renderMatch(m))}
+      </div>}
+      <div className="section-head all"><span>All matches by group</span></div>
       {GROUPS.map(g=>{
         const open=openGroups.has(g); const games=MATCHES.filter(m=>m.g===g);
         const gMade=games.filter(m=>{const v=myS[m.id];return v&&v.h!==""&&v.a!==""&&v.h!=null&&v.a!=null;}).length;
@@ -683,35 +729,7 @@ function Pool(){
             <span className="muted tiny">{gMade}/6 picked{myB[g]?" · ★ set":""}</span>
             <span className="caret">{open?"−":"+"}</span>
           </button>
-          {open&&games.map(m=>{
-            const locked=isLocked(m); const pk=myS[m.id]||{}; const res=results[m.id]; const isB=myB[g]===m.id;
-            let earned=null;
-            if(res&&pk.h!=null&&pk.a!=null&&pk.h!==""&&pk.a!==""){const e=scorePick({h:+pk.h,a:+pk.a},res);earned={...e,total:e.pts*(isB?2:1)};}
-            return (<div key={m.id} className={`match ${locked?"locked":""}`}>
-              <div className="teams">
-                <div className="team home"><span className="tname">{m.h}</span><span className="flag">{FLAGS[m.h]||"⚽"}</span></div>
-                <div className="scorebox">
-                  <input className="num" type="number" min="0" max="99" value={pk.h??""} disabled={locked} onChange={e=>setScore(m.id,"h",e.target.value)}/>
-                  <span className="colon">:</span>
-                  <input className="num" type="number" min="0" max="99" value={pk.a??""} disabled={locked} onChange={e=>setScore(m.id,"a",e.target.value)}/>
-                </div>
-                <div className="team away"><span className="flag">{FLAGS[m.a]||"⚽"}</span><span className="tname">{m.a}</span></div>
-              </div>
-              {!res && (()=>{const diff=new Date(m.utc).getTime()-now;return (
-                <div className={`countdown ${(!locked&&diff<3600000)?"soon":""} ${locked?"started":""}`}>
-                  {locked ? "● Kicked off — picks locked" : "⏱ Kicks off in "+fmtCountdown(diff)}
-                </div>);})()}
-              <div className="match-foot">
-                <button className={`bankbtn ${isB?"on":""}`} disabled={locked} onClick={()=>toggleBanker(g,m.id)}>★ Banker</button>
-                <span className="foot-right">
-                  <span className="muted tiny">{m.when}</span>
-                  {res&&<span className="final">FT {res.h}–{res.a}</span>}
-                  {locked&&!res&&<span className="lockpill">LOCKED</span>}
-                  {earned&&<span className={`pts ${earned.tier}`}>{earned.total>0?`+${earned.total}`:"+0"}{isB&&earned.pts>0?"★":""}</span>}
-                </span>
-              </div>
-            </div>);
-          })}
+          {open&&games.map(m=>renderMatch(m))}
         </div>);
       })}
       <div className="savebar">{isCommish&&<button className="btn btn-smart big" onClick={smartFill}>✨ Smart Fill</button>}<button className="btn btn-primary big" onClick={savePicks} disabled={!dirty||busy}>{busy?"Saving…":(dirty?"Save my picks":"All saved ✓")}</button></div>
