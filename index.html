@@ -418,6 +418,7 @@ function Pool(){
   const [fInvite,setFInvite]=useState("");
   const [busy,setBusy]=useState(false);
   const [recovery,setRecovery]=useState(false); const [newPass,setNewPass]=useState("");
+  const [boardRPC,setBoardRPC]=useState(null);   // authoritative leaderboard from the DB (null = use client fallback)
 
   const flash=(m)=>{setToast(m);setTimeout(()=>setToast(""),2800);};
 
@@ -428,11 +429,18 @@ function Pool(){
       sb.from("pool_meta").select("*").eq("id",1).maybeSingle(),
       sb.from("matches").select("id,kickoff"),
     ]);
-    // Picks can exceed Supabase's 1000-row response cap, so page through ALL of them.
+    // Picks can exceed Supabase's 1000-row response cap, so page through ALL of them
+    // with a STABLE sort so pages never skip/overlap (otherwise totals can wobble).
     let picksRows=[]; { const page=1000; let from=0;
-      while(true){ const { data } = await sb.from("picks").select("*").range(from,from+page-1);
+      while(true){ const { data } = await sb.from("picks").select("*").order("user_id",{ascending:true}).order("match_id",{ascending:true}).range(from,from+page-1);
         if(!data||!data.length) break; picksRows=picksRows.concat(data);
         if(data.length<page) break; from+=page; } }
+    // Authoritative leaderboard: computed in the database (identical every refresh).
+    // Falls back to client-side math only if the RPC hasn't been installed yet.
+    try{ const { data:lb, error } = await sb.rpc("leaderboard");
+      if(!error && lb) setBoardRPC(lb.map(r=>({id:r.id,name:r.name,pts:r.points,exact:r.exact_ct,gd:r.gd_ct,result:r.result_ct,bankHit:r.bank_ct,made:r.made_ct})));
+      else setBoardRPC(null);
+    }catch(e){ setBoardRPC(null); }
     setPlayers((profs||[]).map(p=>({id:p.id,name:p.display_name})));
     const km={}; (mt||[]).forEach(r=>{ if(r.kickoff) km[r.id]=r.kickoff; }); setKickoffs(km);
     const map={};
@@ -584,6 +592,7 @@ function Pool(){
 
   // ---- STANDINGS ----
   const standings=useMemo(()=>{
+    if(boardRPC && boardRPC.length) return boardRPC;       // authoritative DB result
     const rows=players.map(pl=>{
       const pk=allPicks[pl.id]||{}; let pts=0,exact=0,gd=0,result=0,bankHit=0,made=Object.keys(pk).length;
       for(const [mid,res] of Object.entries(results)){
@@ -596,7 +605,7 @@ function Pool(){
     });
     rows.sort((a,b)=>b.pts-a.pts||b.exact-a.exact||b.gd-a.gd||a.name.localeCompare(b.name));
     return rows;
-  },[players,allPicks,results]);
+  },[boardRPC,players,allPicks,results]);
 
   const tables=useMemo(()=>{
     const out={};
