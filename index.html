@@ -35,6 +35,8 @@ body{--bg:#080B14;--bg2:#0E1422;--surface:#141C2E;--surface2:#1A2438;--line:rgba
 .section-head.up{margin:2px 2px 10px;color:var(--gold)}
 .section-head.all{color:var(--muted);border-top:1px solid var(--line);padding-top:16px}
 .upcoming{display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid rgba(255,201,77,.34);border-radius:16px;background:rgba(255,201,77,.06);margin-bottom:6px}
+.lb-status{font-size:12px;color:var(--green,#36e5a0);margin:0 2px 12px;font-weight:700}
+.buildstamp{text-align:center;font-size:10px;color:var(--muted);opacity:.5;margin:26px 0 8px;letter-spacing:.03em}
 .kicker{font-size:11px;letter-spacing:3px;color:var(--primary);font-weight:800;text-transform:uppercase}
 .head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:18px}
 .title{font-size:clamp(28px,7vw,52px);background:linear-gradient(92deg,#fff 30%,#FFD6DD 60%,var(--primary));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
@@ -361,6 +363,7 @@ const BANNER = [
   "کی رئیسه؟",
   "کی حرف آخر رو می‌زنه؟",
 ];
+const BUILD = "2026.06.22 · stable-leaderboard";
 const outcome = (h,a)=> h>a?"H":h<a?"A":"D";
 const matchById = Object.fromEntries(MATCHES.map(m=>[m.id,m]));
 function fmtCountdown(ms){
@@ -438,9 +441,9 @@ function Pool(){
     // Authoritative leaderboard: computed in the database (identical every refresh).
     // Falls back to client-side math only if the RPC hasn't been installed yet.
     try{ const { data:lb, error } = await sb.rpc("leaderboard");
-      if(!error && lb) setBoardRPC(lb.map(r=>({id:r.id,name:r.name,pts:r.points,exact:r.exact_ct,gd:r.gd_ct,result:r.result_ct,bankHit:r.bank_ct,made:r.made_ct})));
-      else setBoardRPC(null);
-    }catch(e){ setBoardRPC(null); }
+      if(!error && lb && lb.length) setBoardRPC(lb.map(r=>({id:r.id,name:r.name,pts:r.points,exact:r.exact_ct,gd:r.gd_ct,result:r.result_ct,bankHit:r.bank_ct,made:r.made_ct})));
+      // On error/empty we KEEP the last good DB board (never flip back to the client fallback mid-session).
+    }catch(e){ /* keep last good board */ }
     setPlayers((profs||[]).map(p=>({id:p.id,name:p.display_name})));
     const km={}; (mt||[]).forEach(r=>{ if(r.kickoff) km[r.id]=r.kickoff; }); setKickoffs(km);
     const map={};
@@ -747,6 +750,7 @@ function Pool(){
     </>}
 
     {tab==="board"&&<div className="board">
+      <div className="lb-status">{boardRPC ? "✓ Scores computed in the database — identical for everyone, every refresh" : "Computing scores…"}</div>
       {standings.length===0&&<div className="muted center">No players yet.</div>}
       {standings.map((r,i)=>(<div key={r.id} className={`lb ${r.id===me.id?"merow":""} ${i<3?`top top${i+1}`:""}`}>
         <div className="lb-rank">{i+1}</div>
@@ -891,6 +895,7 @@ function Pool(){
     </div>}
 
     {toast&&<div className="toast">{toast}</div>}
+    <div className="buildstamp">build {BUILD}</div>
   </div>);
 }
 
