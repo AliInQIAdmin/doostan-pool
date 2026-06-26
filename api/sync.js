@@ -43,6 +43,19 @@ function canon(s){ const n=norm(s); return ALIAS[n]||n; }
 const byPair = {};
 for(const [id,h,a] of MAP){ const hn=canon(h), an=canon(a); byPair[[hn,an].sort().join("|")]={id,hn,an}; }
 
+// Map API-Football round names to our knockout round codes.
+function mapRound(s){
+  const x = String(s||"").toLowerCase();
+  if (x.includes("group")) return null;            // group stage handled by team-pair map
+  if (x.includes("round of 32")) return "R32";
+  if (x.includes("round of 16")) return "R16";
+  if (x.includes("quarter")) return "QF";
+  if (x.includes("semi")) return "SF";
+  if (x.includes("3rd place") || x.includes("third place")) return "3P";
+  if (x.includes("final")) return "F";
+  return null;
+}
+
 module.exports = async (req, res) => {
   // --- protect the endpoint ---
   const secret = process.env.CRON_SECRET;
@@ -82,18 +95,37 @@ module.exports = async (req, res) => {
 
     const FINISHED = new Set(["FT", "AET", "PEN"]);
     const resultsRows = [], upcoming = [], unmatched = [], kickoffRows = [];
+    const koMatchRows = [], koResultRows = [];
 
     for (const f of fixtures) {
-      const hn = canon(f.teams.home.name), an = canon(f.teams.away.name);
-      const m = byPair[[hn, an].sort().join("|")];
-      if (!m) { unmatched.push(`${f.teams.home.name} vs ${f.teams.away.name}`); continue; }
-      const same = hn === m.hn; // does API's home == our home?
-      if (FINISHED.has(f.fixture.status.short) && f.goals.home != null && f.goals.away != null) {
-        resultsRows.push({ match_id: m.id, home: same ? f.goals.home : f.goals.away, away: same ? f.goals.away : f.goals.home });
-      }
       const ts = (f.fixture.timestamp || 0) * 1000;
-      if (ts > 0) kickoffRows.push({ id: m.id, kickoff: new Date(ts).toISOString() });
-      if (ts > Date.now() && ts - Date.now() < 48 * 3600 * 1000) upcoming.push({ id: m.id, fixtureId: f.fixture.id, same });
+      const finished = FINISHED.has(f.fixture.status.short) && f.goals.home != null && f.goals.away != null;
+      const koRound = mapRound(f.league && f.league.round);
+
+      if (!koRound) {
+        // ---- GROUP STAGE (matched by team pair, as before) ----
+        const hn = canon(f.teams.home.name), an = canon(f.teams.away.name);
+        const m = byPair[[hn, an].sort().join("|")];
+        if (!m) { unmatched.push(`${f.teams.home.name} vs ${f.teams.away.name}`); continue; }
+        const same = hn === m.hn;
+        if (finished) resultsRows.push({ match_id: m.id, home: same ? f.goals.home : f.goals.away, away: same ? f.goals.away : f.goals.home });
+        if (ts > 0) kickoffRows.push({ id: m.id, kickoff: new Date(ts).toISOString() });
+        if (ts > Date.now() && ts - Date.now() < 48 * 3600 * 1000) upcoming.push({ id: m.id, fixtureId: f.fixture.id, same: true });
+      } else {
+        // ---- KNOCKOUT (teams come straight from the API once known) ----
+        if (!f.teams.home.id || !f.teams.away.id) continue;   // both teams not determined yet — skip
+        const id = `KO-${f.fixture.id}`;
+        koMatchRows.push({
+          id, grp: koRound, round: koRound,
+          home: f.teams.home.name, away: f.teams.away.name,
+          kickoff: ts > 0 ? new Date(ts).toISOString() : null,
+        });
+        if (finished) {
+          const advanced = f.teams.home.winner ? "H" : (f.teams.away.winner ? "A" : null);
+          koResultRows.push({ match_id: id, home: f.goals.home, away: f.goals.away, advanced });
+        }
+        if (ts > Date.now() && ts - Date.now() < 48 * 3600 * 1000) upcoming.push({ id, fixtureId: f.fixture.id, same: true });
+      }
     }
 
     // odds for matches kicking off within 48h (cap to stay friendly to quota)
@@ -115,6 +147,11 @@ module.exports = async (req, res) => {
     const r2 = await sbUpsert("match_odds", oddsRows);
     let r3 = { count: 0 };
     try { r3 = await sbUpsert("matches", kickoffRows, "id"); } catch (e) { r3 = { error: String(e) }; }
+    // Knockout writes are wrapped so that if add-knockout.sql hasn't been applied
+    // yet (no round/advanced columns), the group-stage sync still succeeds.
+    let r4 = { count: 0 }, r5 = { count: 0 };
+    try { r4 = await sbUpsert("matches", koMatchRows, "id"); } catch (e) { r4 = { error: String(e) }; }
+    try { r5 = await sbUpsert("results", koResultRows); } catch (e) { r5 = { error: String(e) }; }
 
     return res.status(200).json({
       ok: true,
@@ -122,8 +159,10 @@ module.exports = async (req, res) => {
       results_written: resultsRows.length,
       odds_written: oddsRows.length,
       kickoffs_written: r3.count || 0,
-      results_db: r1, odds_db: r2,
-      unmatched_team_names: unmatched, // <-- if any names show here, send them to me and I'll add the alias
+      knockout_matches_written: r4.count || 0,
+      knockout_results_written: r5.count || 0,
+      results_db: r1, odds_db: r2, knockout_matches_db: r4, knockout_results_db: r5,
+      unmatched_team_names: unmatched, // <-- if any GROUP names show here, send them to me and I'll add the alias
     });
   } catch (e) {
     return res.status(500).json({ error: String(e) });
