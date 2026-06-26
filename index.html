@@ -37,6 +37,17 @@ body{--bg:#080B14;--bg2:#0E1422;--surface:#141C2E;--surface2:#1A2438;--line:rgba
 .upcoming{display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid rgba(255,201,77,.34);border-radius:16px;background:rgba(255,201,77,.06);margin-bottom:6px}
 .lb-status{font-size:12px;color:var(--green,#36e5a0);margin:0 2px 12px;font-weight:700}
 .buildstamp{text-align:center;font-size:10px;color:var(--muted);opacity:.5;margin:26px 0 8px;letter-spacing:.03em}
+.advpick{display:flex;align-items:center;gap:8px;margin:8px 0 2px;flex-wrap:wrap}
+.advlabel{font-size:10.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.advbtn{flex:1;min-width:88px;padding:8px 10px;border-radius:10px;border:1.5px solid var(--line);background:transparent;color:var(--text);font-family:inherit;font-weight:700;font-size:12.5px;cursor:pointer;transition:.15s}
+.advbtn.on{border-color:var(--gold);background:rgba(255,201,77,.16);color:var(--gold)}
+.advbtn.correct{border-color:var(--green,#36e5a0);background:rgba(54,229,160,.16);color:var(--green,#36e5a0)}
+.advbtn:disabled{opacity:.55;cursor:default}
+.group-head.static{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;background:transparent;border:0}
+.group-tag.ko{background:rgba(255,201,77,.16);color:var(--gold)}
+.group.ko{border-color:rgba(255,201,77,.3)}
+.apadv{margin-left:6px;font-size:11px;color:var(--gold);font-weight:700}
+.apround{margin-left:8px;font-size:10px;color:var(--gold);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 .kicker{font-size:11px;letter-spacing:3px;color:var(--primary);font-weight:800;text-transform:uppercase}
 .head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:18px}
 .title{font-size:clamp(28px,7vw,52px);background:linear-gradient(92deg,#fff 30%,#FFD6DD 60%,var(--primary));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
@@ -364,6 +375,9 @@ const BANNER = [
   "کی حرف آخر رو می‌زنه؟",
 ];
 const BUILD = "2026.06.22 · stable-leaderboard";
+const KO_ORDER = ["R32","R16","QF","SF","3P","F"];
+const KO_LABEL = {R32:"Round of 32", R16:"Round of 16", QF:"Quarterfinals", SF:"Semifinals", "3P":"Third place", F:"Final"};
+function fmtWhen(iso){ if(!iso) return "TBD"; try{ return new Date(iso).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",timeZone:"America/New_York"})+" ET"; }catch(e){ return ""; } }
 const outcome = (h,a)=> h>a?"H":h<a?"A":"D";
 const matchById = Object.fromEntries(MATCHES.map(m=>[m.id,m]));
 function fmtCountdown(ms){
@@ -408,6 +422,8 @@ function Pool(){
   const [odds,setOdds]=useState({});             // {mid:{h,d,a}} market probabilities
   const [kickoffs,setKickoffs]=useState({});     // {mid: ISO} real kickoff times from the live feed
   const [myS,setMyS]=useState({}); const [myB,setMyB]=useState({});
+  const [KO,setKO]=useState([]);                 // knockout matches from the DB (auto-populated by the feed)
+  const [myAdv,setMyAdv]=useState({});           // {mid: 'H'|'A'} my "who advances" picks
   const [dirty,setDirty]=useState(false);
   const [tab,setTab]=useState("picks");
   const [now,setNow]=useState(Date.now());
@@ -430,7 +446,7 @@ function Pool(){
       sb.from("profiles").select("*"),
       sb.from("results").select("*"),
       sb.from("pool_meta").select("*").eq("id",1).maybeSingle(),
-      sb.from("matches").select("id,kickoff"),
+      sb.from("matches").select("id,grp,home,away,kickoff,round"),
     ]);
     // Picks can exceed Supabase's 1000-row response cap, so page through ALL of them
     // with a STABLE sort so pages never skip/overlap (otherwise totals can wobble).
@@ -446,17 +462,26 @@ function Pool(){
     }catch(e){ /* keep last good board */ }
     setPlayers((profs||[]).map(p=>({id:p.id,name:p.display_name})));
     const km={}; (mt||[]).forEach(r=>{ if(r.kickoff) km[r.id]=r.kickoff; }); setKickoffs(km);
+    // Knockout matches arrive from the DB (the feed fills them in as teams qualify).
+    const koList=(mt||[]).filter(r=>r.round && r.round!=="group").map(r=>({
+      id:r.id, g:r.round, round:r.round, h:r.home, a:r.away, utc:r.kickoff,
+      when:fmtWhen(r.kickoff), ko:true,
+    }));
+    koList.sort((a,b)=> (KO_ORDER.indexOf(a.round)-KO_ORDER.indexOf(b.round)) || (Date.parse(a.utc||0)-Date.parse(b.utc||0)) );
+    setKO(koList);
+    const koG={}; koList.forEach(m=>{ koG[m.id]=m.g; });
+    const gOf=(mid)=> matchById[mid] ? matchById[mid].g : koG[mid];
     const map={};
-    (picksRows||[]).forEach(r=>{(map[r.user_id]??={})[r.match_id]={h:r.home,a:r.away,banker:r.is_banker};});
+    (picksRows||[]).forEach(r=>{(map[r.user_id]??={})[r.match_id]={h:r.home,a:r.away,banker:r.is_banker,advance:r.advance};});
     setAllPicks(map);
-    const rmap={}; (resRows||[]).forEach(r=>{rmap[r.match_id]={h:r.home,a:r.away};});
+    const rmap={}; (resRows||[]).forEach(r=>{rmap[r.match_id]={h:r.home,a:r.away,adv:r.advanced};});
     setResults(rmap); setResultDraft(rmap);
     try{ const {data:oddsRows}=await sb.from("match_odds").select("*"); const om={}; (oddsRows||[]).forEach(o=>{om[o.match_id]={h:o.home_pct,d:o.draw_pct,a:o.away_pct};}); setOdds(om); }catch(e){ setOdds({}); }
     if(pm){setPoolName(pm.name);setCommissioner(pm.commissioner);}
     if(uid && map[uid]){
-      const s={},b={};
-      Object.entries(map[uid]).forEach(([mid,v])=>{s[mid]={h:v.h,a:v.a};if(v.banker)b[matchById[mid].g]=mid;});
-      if(!dirty){setMyS(s);setMyB(b);}
+      const s={},b={},adv={};
+      Object.entries(map[uid]).forEach(([mid,v])=>{s[mid]={h:v.h,a:v.a};const g=gOf(mid);if(v.banker&&g)b[g]=mid;if(v.advance)adv[mid]=v.advance;});
+      if(!dirty){setMyS(s);setMyB(b);setMyAdv(adv);}
     }
   },[dirty]);
 
@@ -548,8 +573,12 @@ function Pool(){
   const logout=async()=>{ await sb.auth.signOut(); setMe(null); setMyS({}); setMyB({}); setTab("picks"); };
 
   // ---- PICKS ----
-  const setScore=(mid,side,val)=>{ if(isLocked(matchById[mid]))return; let n=val===""?"":Math.max(0,Math.min(99,parseInt(val,10)||0)); setMyS(p=>({...p,[mid]:{...p[mid],[side]:n}})); setDirty(true); };
-  const toggleBanker=(g,mid)=>{ if(isLocked(matchById[mid]))return; setMyB(p=>{const n={...p}; n[g]===mid?delete n[g]:n[g]=mid; return n;}); setDirty(true); };
+  const koById=useMemo(()=>Object.fromEntries(KO.map(m=>[m.id,m])),[KO]);
+  const mAll=useMemo(()=>({...matchById,...koById}),[koById]);
+  const ALLM=useMemo(()=>[...MATCHES,...KO],[KO]);
+  const setScore=(mid,side,val)=>{ if(isLocked(mAll[mid]))return; let n=val===""?"":Math.max(0,Math.min(99,parseInt(val,10)||0)); setMyS(p=>({...p,[mid]:{...p[mid],[side]:n}})); setDirty(true); };
+  const toggleBanker=(g,mid)=>{ if(isLocked(mAll[mid]))return; setMyB(p=>{const n={...p}; n[g]===mid?delete n[g]:n[g]=mid; return n;}); setDirty(true); };
+  const setAdv=(mid,side)=>{ if(isLocked(mAll[mid]))return; setMyAdv(p=>({...p,[mid]:side})); setDirty(true); };
   const smartFill=()=>{
     const next={...myS}; let filled=0;
     for(const m of MATCHES){
@@ -573,7 +602,7 @@ function Pool(){
     if(!me)return; setBusy(true);
     const rows=[];
     for(const [mid,v] of Object.entries(myS)) if(v&&v.h!==""&&v.a!==""&&v.h!=null&&v.a!=null)
-      rows.push({user_id:me.id,match_id:mid,home:+v.h,away:+v.a,is_banker:myB[matchById[mid].g]===mid});
+      rows.push({user_id:me.id,match_id:mid,home:+v.h,away:+v.a,is_banker:(mAll[mid]&&myB[mAll[mid].g]===mid)||false,advance:myAdv[mid]||null});
     const { error } = await sb.from("picks").upsert(rows,{onConflict:"user_id,match_id"});
     setBusy(false);
     if(error){ flash("Save failed: "+error.message); return; }
@@ -628,6 +657,7 @@ function Pool(){
 
   const renderMatch=(m)=>{
     const g=m.g; const locked=isLocked(m); const pk=myS[m.id]||{}; const res=results[m.id]; const isB=myB[g]===m.id;
+    const isKO=!!m.ko; const adv=myAdv[m.id]; const radv=res&&res.adv;
     let earned=null;
     if(res&&pk.h!=null&&pk.a!=null&&pk.h!==""&&pk.a!==""){const e=scorePick({h:+pk.h,a:+pk.a},res);earned={...e,total:e.pts*(isB?2:1)};}
     const diff=koTime(m)-now;
@@ -641,6 +671,11 @@ function Pool(){
         </div>
         <div className="team away"><span className="flag">{FLAGS[m.a]||"⚽"}</span><span className="tname">{m.a}</span></div>
       </div>
+      {isKO && <div className="advpick">
+        <span className="advlabel">Advances →</span>
+        <button className={`advbtn ${adv==='H'?'on':''} ${radv==='H'?'correct':''}`} disabled={locked} onClick={()=>setAdv(m.id,'H')}>{m.h}</button>
+        <button className={`advbtn ${adv==='A'?'on':''} ${radv==='A'?'correct':''}`} disabled={locked} onClick={()=>setAdv(m.id,'A')}>{m.a}</button>
+      </div>}
       {!res && (
         <div className={`countdown ${(!locked&&diff<3600000)?"soon":""} ${locked?"started":""}`}>
           {locked ? "● Kicked off — picks locked" : "⏱ Kicks off in "+fmtCountdown(diff)}
@@ -649,14 +684,14 @@ function Pool(){
         <button className={`bankbtn ${isB?"on":""}`} disabled={locked} onClick={()=>toggleBanker(g,m.id)}>★ Banker</button>
         <span className="foot-right">
           <span className="muted tiny">{m.when}</span>
-          {res&&<span className="final">FT {res.h}–{res.a}</span>}
+          {res&&<span className="final">FT {res.h}–{res.a}{isKO&&radv?` · ${radv==='H'?m.h:m.a} adv`:""}</span>}
           {locked&&!res&&<span className="lockpill">LOCKED</span>}
           {earned&&<span className={`pts ${earned.tier}`}>{earned.total>0?`+${earned.total}`:"+0"}{isB&&earned.pts>0?"★":""}</span>}
         </span>
       </div>
     </div>);
   };
-  const next48=MATCHES.filter(m=>{const t=koTime(m);return t>now && (t-now)<=48*3600*1000;}).sort((a,b)=>koTime(a)-koTime(b));
+  const next48=ALLM.filter(m=>{const t=koTime(m);return t>now && (t-now)<=48*3600*1000;}).sort((a,b)=>koTime(a)-koTime(b));
 
   if(recovery) return (<div className="container">
     <div className="join">
@@ -746,6 +781,17 @@ function Pool(){
           {open&&games.map(m=>renderMatch(m))}
         </div>);
       })}
+      {KO.length>0 && KO_ORDER.filter(rd=>KO.some(m=>m.round===rd)).map(rd=>{
+        const games=KO.filter(m=>m.round===rd);
+        const kMade=games.filter(m=>{const v=myS[m.id];return v&&v.h!==""&&v.a!==""&&v.h!=null&&v.a!=null;}).length;
+        return (<div key={rd} className="group ko">
+          <div className="group-head static">
+            <span className="group-tag ko">{KO_LABEL[rd]}</span>
+            <span className="muted tiny">{kMade}/{games.length} picked{myB[rd]?" · ★ set":""}</span>
+          </div>
+          {games.map(m=>renderMatch(m))}
+        </div>);
+      })}
       <div className="savebar">{isCommish&&<button className="btn btn-smart big" onClick={smartFill}>✨ Smart Fill</button>}<button className="btn btn-primary big" onClick={savePicks} disabled={!dirty||busy}>{busy?"Saving…":(dirty?"Save my picks":"All saved ✓")}</button></div>
     </>}
 
@@ -763,24 +809,24 @@ function Pool(){
     {tab==="picksall"&&<div className="allpicks">
       <p className="muted tiny" style={{marginBottom:12}}>Everyone's predictions. Each match stays hidden until kickoff so nobody can copy — the result and points appear once the score is in.</p>
       {isCommish&&<div className="commishnote">👑 Commissioner: you can see every pick before kickoff. Everyone else only sees a match after it kicks off.</div>}
-      {MATCHES.map(m=>{
+      {ALLM.map(m=>{
         const locked=isLocked(m); const reveal=locked||isCommish; const res=results[m.id];
         const here=players.map(pl=>({pl,pk:allPicks[pl.id]&&allPicks[pl.id][m.id]})).filter(x=>x.pk);
         return (<div key={m.id} className="apmatch">
           <div className="aphead">
-            <span className="aptitle">{FLAGS[m.h]||"⚽"} {m.h} <span className="apv">v</span> {m.a} {FLAGS[m.a]||"⚽"}{isCommish&&!locked&&<span className="apearly">👑 early view</span>}</span>
-            {res?<span className="apres">{res.h}–{res.a}</span>:<span className="apwhen">{m.when}</span>}
+            <span className="aptitle">{FLAGS[m.h]||"⚽"} {m.h} <span className="apv">v</span> {m.a} {FLAGS[m.a]||"⚽"}{m.ko?<span className="apround">{KO_LABEL[m.round]}</span>:null}{isCommish&&!locked&&<span className="apearly">👑 early view</span>}</span>
+            {res?<span className="apres">{res.h}–{res.a}{m.ko&&res.adv?` · ${res.adv==='H'?m.h:m.a}↑`:""}</span>:<span className="apwhen">{m.when}</span>}
           </div>
           {!reveal
             ? <div className="aphidden">🔒 Reveals at kickoff · {here.length} pick{here.length!==1?"s":""} in</div>
             : here.length===0
               ? <div className="aphidden">No picks {locked?"were":"yet"} made.</div>
               : <div className="aplist">{here.map(({pl,pk})=>{
-                  let earned=null; if(res){const e=scorePick({h:pk.h,a:pk.a},res); earned={...e,total:e.pts*(pk.banker?2:1)};}
+                  let earned=null; if(res&&!m.ko){const e=scorePick({h:pk.h,a:pk.a},res); earned={...e,total:e.pts*(pk.banker?2:1)};}
                   return (<div key={pl.id} className={`aprow ${pl.id===me.id?"me":""}`}>
                     <span className="apname" dir="auto">{pl.name||"Player"}{pl.id===me.id?" (you)":""}</span>
-                    <span className="appred">{pk.h}–{pk.a}{pk.banker?<span className="apbank" title="Banker">★</span>:null}</span>
-                    {res&&<span className={`appts ${earned.tier}`}>{earned.total>0?"+"+earned.total:"0"}</span>}
+                    <span className="appred">{pk.h}–{pk.a}{pk.banker?<span className="apbank" title="Banker">★</span>:null}{m.ko&&pk.advance?<span className="apadv">{(pk.advance==='H'?m.h:m.a)}↑</span>:null}</span>
+                    {res&&earned&&<span className={`appts ${earned.tier}`}>{earned.total>0?"+"+earned.total:"0"}</span>}
                   </div>);
                 })}</div>}
         </div>);
@@ -789,7 +835,7 @@ function Pool(){
 
     {tab==="hive"&&<div className="hive">
       <p className="muted tiny" style={{marginBottom:12}}>The crowd's predictions, totaled up — no names, just how many picked each score. See where everyone's leaning. 🐝</p>
-      {MATCHES.map(m=>{
+      {ALLM.map(m=>{
         const counts={}; let total=0;
         players.forEach(pl=>{const pk=allPicks[pl.id]&&allPicks[pl.id][m.id]; if(pk&&pk.h!=null&&pk.a!=null){const k=pk.h+"–"+pk.a; counts[k]=(counts[k]||0)+1; total++;}});
         const rows=Object.entries(counts).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
