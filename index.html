@@ -577,7 +577,15 @@ function Pool(){
   const mAll=useMemo(()=>({...matchById,...koById}),[koById]);
   const ALLM=useMemo(()=>[...MATCHES,...KO],[KO]);
   const setScore=(mid,side,val)=>{ if(isLocked(mAll[mid]))return; let n=val===""?"":Math.max(0,Math.min(99,parseInt(val,10)||0)); setMyS(p=>({...p,[mid]:{...p[mid],[side]:n}})); setDirty(true); };
-  const toggleBanker=(g,mid)=>{ if(isLocked(mAll[mid]))return; setMyB(p=>{const n={...p}; n[g]===mid?delete n[g]:n[g]=mid; return n;}); setDirty(true); };
+  const toggleBanker=(g,mid)=>{
+    if(isLocked(mAll[mid]))return;                       // can't banker a match that's kicked off
+    const cur=myB[g];
+    if(cur && cur!==mid && isLocked(mAll[cur])){          // current banker is already locked — it's committed
+      flash("Your banker for this group is locked — that match already kicked off.");
+      return;
+    }
+    setMyB(p=>{const n={...p}; n[g]===mid?delete n[g]:n[g]=mid; return n;}); setDirty(true);
+  };
   const setAdv=(mid,side)=>{ if(isLocked(mAll[mid]))return; setMyAdv(p=>({...p,[mid]:side})); setDirty(true); };
   const smartFill=()=>{
     const next={...myS}; let filled=0;
