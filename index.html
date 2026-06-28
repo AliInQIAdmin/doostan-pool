@@ -700,6 +700,51 @@ function Pool(){
     </div>);
   };
   const next48=ALLM.filter(m=>{const t=koTime(m);return t>now && (t-now)<=48*3600*1000;}).sort((a,b)=>koTime(a)-koTime(b));
+  const next48Set=new Set(next48.map(m=>m.id));
+  const rest=ALLM.filter(m=>!next48Set.has(m.id));
+  // Row renderers shared by the "Next 48 hours" and "All matches" sections.
+  const renderAPMatch=(m)=>{
+    const locked=isLocked(m); const reveal=locked||isCommish; const res=results[m.id];
+    const here=players.map(pl=>({pl,pk:allPicks[pl.id]&&allPicks[pl.id][m.id]})).filter(x=>x.pk);
+    return (<div key={m.id} className="apmatch">
+      <div className="aphead">
+        <span className="aptitle">{FLAGS[m.h]||"⚽"} {m.h} <span className="apv">v</span> {m.a} {FLAGS[m.a]||"⚽"}{m.ko?<span className="apround">{KO_LABEL[m.round]}</span>:null}{isCommish&&!locked&&<span className="apearly">👑 early view</span>}</span>
+        {res?<span className="apres">{res.h}–{res.a}{m.ko&&res.adv?` · ${res.adv==='H'?m.h:m.a}↑`:""}</span>:<span className="apwhen">{m.when}</span>}
+      </div>
+      {!reveal
+        ? <div className="aphidden">🔒 Reveals at kickoff · {here.length} pick{here.length!==1?"s":""} in</div>
+        : here.length===0
+          ? <div className="aphidden">No picks {locked?"were":"yet"} made.</div>
+          : <div className="aplist">{here.map(({pl,pk})=>{
+              let earned=null; if(res&&!m.ko){const e=scorePick({h:pk.h,a:pk.a},res); earned={...e,total:e.pts*(pk.banker?2:1)};}
+              return (<div key={pl.id} className={`aprow ${pl.id===me.id?"me":""}`}>
+                <span className="apname" dir="auto">{pl.name||"Player"}{pl.id===me.id?" (you)":""}</span>
+                <span className="appred">{pk.h}–{pk.a}{pk.banker?<span className="apbank" title="Banker">★</span>:null}{m.ko&&pk.advance?<span className="apadv">{(pk.advance==='H'?m.h:m.a)}↑</span>:null}</span>
+                {res&&earned&&<span className={`appts ${earned.tier}`}>{earned.total>0?"+"+earned.total:"0"}</span>}
+              </div>);
+            })}</div>}
+    </div>);
+  };
+  const renderHiveCard=(m)=>{
+    const counts={}; let total=0;
+    players.forEach(pl=>{const pk=allPicks[pl.id]&&allPicks[pl.id][m.id]; if(pk&&pk.h!=null&&pk.a!=null){const k=pk.h+"–"+pk.a; counts[k]=(counts[k]||0)+1; total++;}});
+    const rows=Object.entries(counts).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
+    const max=rows.length?rows[0][1]:1; const res=results[m.id]; const rk=res?res.h+"–"+res.a:null;
+    return (<div key={m.id} className="hivecard">
+      <div className="hivehead">
+        <span className="hivetitle">{FLAGS[m.h]||"⚽"} {m.h} <span className="apv">v</span> {m.a} {FLAGS[m.a]||"⚽"}{m.ko?<span className="apround">{KO_LABEL[m.round]}</span>:null}</span>
+        {res?<span className="apres">{res.h}–{res.a}</span>:<span className="apwhen">{m.when}</span>}
+      </div>
+      {total===0
+        ? <div className="aphidden">No picks in yet.</div>
+        : rows.map(([k,c])=>(<div key={k} className={`hrow ${k===rk?"hit":""}`}>
+            <span className="hbar" style={{width:(c/max*100)+"%"}}></span>
+            <span className="hcount">{c}</span><span className="hlabel">picked <span className="hscore">{k}</span></span>
+            {k===rk&&<span className="hcheck">✓ result</span>}
+          </div>))}
+      {total>0&&<div className="hivetot">{total} pick{total!==1?"s":""} total</div>}
+    </div>);
+  };
 
   if(recovery) return (<div className="container">
     <div className="join">
@@ -817,52 +862,22 @@ function Pool(){
     {tab==="picksall"&&<div className="allpicks">
       <p className="muted tiny" style={{marginBottom:12}}>Everyone's predictions. Each match stays hidden until kickoff so nobody can copy — the result and points appear once the score is in.</p>
       {isCommish&&<div className="commishnote">👑 Commissioner: you can see every pick before kickoff. Everyone else only sees a match after it kicks off.</div>}
-      {ALLM.map(m=>{
-        const locked=isLocked(m); const reveal=locked||isCommish; const res=results[m.id];
-        const here=players.map(pl=>({pl,pk:allPicks[pl.id]&&allPicks[pl.id][m.id]})).filter(x=>x.pk);
-        return (<div key={m.id} className="apmatch">
-          <div className="aphead">
-            <span className="aptitle">{FLAGS[m.h]||"⚽"} {m.h} <span className="apv">v</span> {m.a} {FLAGS[m.a]||"⚽"}{m.ko?<span className="apround">{KO_LABEL[m.round]}</span>:null}{isCommish&&!locked&&<span className="apearly">👑 early view</span>}</span>
-            {res?<span className="apres">{res.h}–{res.a}{m.ko&&res.adv?` · ${res.adv==='H'?m.h:m.a}↑`:""}</span>:<span className="apwhen">{m.when}</span>}
-          </div>
-          {!reveal
-            ? <div className="aphidden">🔒 Reveals at kickoff · {here.length} pick{here.length!==1?"s":""} in</div>
-            : here.length===0
-              ? <div className="aphidden">No picks {locked?"were":"yet"} made.</div>
-              : <div className="aplist">{here.map(({pl,pk})=>{
-                  let earned=null; if(res&&!m.ko){const e=scorePick({h:pk.h,a:pk.a},res); earned={...e,total:e.pts*(pk.banker?2:1)};}
-                  return (<div key={pl.id} className={`aprow ${pl.id===me.id?"me":""}`}>
-                    <span className="apname" dir="auto">{pl.name||"Player"}{pl.id===me.id?" (you)":""}</span>
-                    <span className="appred">{pk.h}–{pk.a}{pk.banker?<span className="apbank" title="Banker">★</span>:null}{m.ko&&pk.advance?<span className="apadv">{(pk.advance==='H'?m.h:m.a)}↑</span>:null}</span>
-                    {res&&earned&&<span className={`appts ${earned.tier}`}>{earned.total>0?"+"+earned.total:"0"}</span>}
-                  </div>);
-                })}</div>}
-        </div>);
-      })}
+      {next48.length>0&&<div className="upcoming">
+        <div className="section-head up"><span>⏱ Next 48 hours</span><span className="muted tiny">{next48.length} match{next48.length!==1?"es":""}</span></div>
+        {next48.map(m=>renderAPMatch(m))}
+      </div>}
+      {next48.length>0&&<div className="section-head all"><span>All other matches</span></div>}
+      {rest.map(m=>renderAPMatch(m))}
     </div>}
 
     {tab==="hive"&&<div className="hive">
       <p className="muted tiny" style={{marginBottom:12}}>The crowd's predictions, totaled up — no names, just how many picked each score. See where everyone's leaning. 🐝</p>
-      {ALLM.map(m=>{
-        const counts={}; let total=0;
-        players.forEach(pl=>{const pk=allPicks[pl.id]&&allPicks[pl.id][m.id]; if(pk&&pk.h!=null&&pk.a!=null){const k=pk.h+"–"+pk.a; counts[k]=(counts[k]||0)+1; total++;}});
-        const rows=Object.entries(counts).sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0]));
-        const max=rows.length?rows[0][1]:1; const res=results[m.id]; const rk=res?res.h+"–"+res.a:null;
-        return (<div key={m.id} className="hivecard">
-          <div className="hivehead">
-            <span className="hivetitle">{FLAGS[m.h]||"⚽"} {m.h} <span className="apv">v</span> {m.a} {FLAGS[m.a]||"⚽"}</span>
-            {res?<span className="apres">{res.h}–{res.a}</span>:<span className="apwhen">{m.when}</span>}
-          </div>
-          {total===0
-            ? <div className="aphidden">No picks in yet.</div>
-            : rows.map(([k,c])=>(<div key={k} className={`hrow ${k===rk?"hit":""}`}>
-                <span className="hbar" style={{width:(c/max*100)+"%"}}></span>
-                <span className="hcount">{c}</span><span className="hlabel">picked <span className="hscore">{k}</span></span>
-                {k===rk&&<span className="hcheck">✓ result</span>}
-              </div>))}
-          {total>0&&<div className="hivetot">{total} pick{total!==1?"s":""} total</div>}
-        </div>);
-      })}
+      {next48.length>0&&<div className="upcoming">
+        <div className="section-head up"><span>⏱ Next 48 hours</span><span className="muted tiny">{next48.length} match{next48.length!==1?"es":""}</span></div>
+        {next48.map(m=>renderHiveCard(m))}
+      </div>}
+      {next48.length>0&&<div className="section-head all"><span>All other matches</span></div>}
+      {rest.map(m=>renderHiveCard(m))}
     </div>}
 
     {tab==="tables"&&<div className="tablesview">
