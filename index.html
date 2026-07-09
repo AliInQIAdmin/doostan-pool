@@ -47,6 +47,11 @@ body{--bg:#080B14;--bg2:#0E1422;--surface:#141C2E;--surface2:#1A2438;--line:rgba
 .group-tag.ko{background:rgba(255,201,77,.16);color:var(--gold)}
 .group.ko{border-color:rgba(255,201,77,.3)}
 .apadv{margin-left:6px;font-size:11px;color:var(--gold);font-weight:700}
+.apadv.good{color:var(--green,#36e5a0)}
+.apadv.bad{color:var(--muted);text-decoration:line-through;opacity:.7}
+.advmark{margin-left:auto;font-size:11.5px;font-weight:800}
+.advmark.good{color:var(--green,#36e5a0)}
+.advmark.bad{color:#ff6b6b}
 .apround{margin-left:8px;font-size:10px;color:var(--gold);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 .kicker{font-size:11px;letter-spacing:3px;color:var(--primary);font-weight:800;text-transform:uppercase}
 .head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:18px}
@@ -377,6 +382,19 @@ const BANNER = [
 const BUILD = "2026.06.22 · stable-leaderboard";
 const KO_ORDER = ["R32","R16","QF","SF","3P","F"];
 const KO_LABEL = {R32:"Round of 32", R16:"Round of 16", QF:"Quarterfinals", SF:"Semifinals", "3P":"Third place", F:"Final"};
+const KO_MULT = {R32:1, R16:1, QF:1.5, SF:2, "3P":1, F:3};
+const ADV_BONUS = 3;
+// Full points for a graded pick, matching the database leaderboard exactly.
+// Group: base × banker. Knockout: (base + advancement bonus) × banker × round multiplier, rounded.
+function fullPoints(m,pk,res,isB){
+  const base=scorePick({h:+pk.h,a:+pk.a},res);
+  const bank=isB?2:1;
+  if(!m.ko) return {tier:base.tier, base:base.pts, adv:0, advHit:false, total:base.pts*bank};
+  const advHit = pk.advance && res.adv && pk.advance===res.adv;
+  const adv = advHit?ADV_BONUS:0;
+  const mult = KO_MULT[m.round]||1;
+  return {tier:base.tier, base:base.pts, adv, advHit, total:Math.round((base.pts+adv)*bank*mult), mult};
+}
 function fmtWhen(iso){ if(!iso) return "TBD"; try{ return new Date(iso).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit",timeZone:"America/New_York"})+" ET"; }catch(e){ return ""; } }
 const outcome = (h,a)=> h>a?"H":h<a?"A":"D";
 const matchById = Object.fromEntries(MATCHES.map(m=>[m.id,m]));
@@ -667,7 +685,7 @@ function Pool(){
     const g=m.g; const locked=isLocked(m); const pk=myS[m.id]||{}; const res=results[m.id]; const isB=myB[g]===m.id;
     const isKO=!!m.ko; const adv=myAdv[m.id]; const radv=res&&res.adv;
     let earned=null;
-    if(res&&pk.h!=null&&pk.a!=null&&pk.h!==""&&pk.a!==""){const e=scorePick({h:+pk.h,a:+pk.a},res);earned={...e,total:e.pts*(isB?2:1)};}
+    if(res&&pk.h!=null&&pk.a!=null&&pk.h!==""&&pk.a!==""){earned=fullPoints(m,pk,res,isB);}
     const diff=koTime(m)-now;
     return (<div key={m.id} className={`match ${locked?"locked":""}`}>
       <div className="teams">
@@ -683,6 +701,7 @@ function Pool(){
         <span className="advlabel">Advances →</span>
         <button className={`advbtn ${adv==='H'?'on':''} ${radv==='H'?'correct':''}`} disabled={locked} onClick={()=>setAdv(m.id,'H')}>{m.h}</button>
         <button className={`advbtn ${adv==='A'?'on':''} ${radv==='A'?'correct':''}`} disabled={locked} onClick={()=>setAdv(m.id,'A')}>{m.a}</button>
+        {res&&adv&&<span className={`advmark ${adv===radv?"good":"bad"}`}>{adv===radv?`✓ advance +${ADV_BONUS}`:"✗ advance"}</span>}
       </div>}
       {!res && (
         <div className={`countdown ${(!locked&&diff<3600000)?"soon":""} ${locked?"started":""}`}>
@@ -694,7 +713,7 @@ function Pool(){
           <span className="muted tiny">{m.when}</span>
           {res&&<span className="final">FT {res.h}–{res.a}{isKO&&radv?` · ${radv==='H'?m.h:m.a} adv`:""}</span>}
           {locked&&!res&&<span className="lockpill">LOCKED</span>}
-          {earned&&<span className={`pts ${earned.tier}`}>{earned.total>0?`+${earned.total}`:"+0"}{isB&&earned.pts>0?"★":""}</span>}
+          {earned&&<span className={`pts ${earned.tier}`}>{earned.total>0?`+${earned.total}`:"+0"}{isB&&earned.base>0?"★":""}</span>}
         </span>
       </div>
     </div>);
@@ -716,10 +735,10 @@ function Pool(){
         : here.length===0
           ? <div className="aphidden">No picks {locked?"were":"yet"} made.</div>
           : <div className="aplist">{here.map(({pl,pk})=>{
-              let earned=null; if(res&&!m.ko){const e=scorePick({h:pk.h,a:pk.a},res); earned={...e,total:e.pts*(pk.banker?2:1)};}
+              let earned=null; if(res){earned=fullPoints(m,{h:pk.h,a:pk.a,advance:pk.advance},res,pk.banker);}
               return (<div key={pl.id} className={`aprow ${pl.id===me.id?"me":""}`}>
                 <span className="apname" dir="auto">{pl.name||"Player"}{pl.id===me.id?" (you)":""}</span>
-                <span className="appred">{pk.h}–{pk.a}{pk.banker?<span className="apbank" title="Banker">★</span>:null}{m.ko&&pk.advance?<span className="apadv">{(pk.advance==='H'?m.h:m.a)}↑</span>:null}</span>
+                <span className="appred">{pk.h}–{pk.a}{pk.banker?<span className="apbank" title="Banker">★</span>:null}{m.ko&&pk.advance?<span className={`apadv ${res&&res.adv?(pk.advance===res.adv?"good":"bad"):""}`}>{(pk.advance==='H'?m.h:m.a)}↑</span>:null}</span>
                 {res&&earned&&<span className={`appts ${earned.tier}`}>{earned.total>0?"+"+earned.total:"0"}</span>}
               </div>);
             })}</div>}
