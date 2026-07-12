@@ -720,7 +720,11 @@ function Pool(){
   };
   const next48=ALLM.filter(m=>{const t=koTime(m);return t>now && (t-now)<=48*3600*1000;}).sort((a,b)=>koTime(a)-koTime(b));
   const next48Set=new Set(next48.map(m=>m.id));
-  const rest=ALLM.filter(m=>!next48Set.has(m.id));
+  // Below the "Next 48 hours" section: knockout rounds first (latest stage on top), then the group stage.
+  const rest=[
+    ...KO.filter(m=>!next48Set.has(m.id)).slice().sort((a,b)=>(KO_ORDER.indexOf(b.round)-KO_ORDER.indexOf(a.round))||(koTime(a)-koTime(b))),
+    ...MATCHES.filter(m=>!next48Set.has(m.id)),
+  ];
   // Row renderers shared by the "Next 48 hours" and "All matches" sections.
   const renderAPMatch=(m)=>{
     const locked=isLocked(m); const reveal=locked||isCommish; const res=results[m.id];
