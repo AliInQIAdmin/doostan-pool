@@ -840,7 +840,19 @@ function Pool(){
         <div className="section-head up"><span>⏱ Next 48 hours</span><span className="muted tiny">{next48.length} match{next48.length!==1?"es":""} · get your picks in</span></div>
         {next48.map(m=>renderMatch(m))}
       </div>}
-      <div className="section-head all"><span>All matches by group</span></div>
+      {KO.length>0 && <div className="section-head all"><span>Knockout rounds</span></div>}
+      {KO.length>0 && KO_ORDER.filter(rd=>KO.some(m=>m.round===rd)).slice().reverse().map(rd=>{
+        const games=KO.filter(m=>m.round===rd);
+        const kMade=games.filter(m=>{const v=myS[m.id];return v&&v.h!==""&&v.a!==""&&v.h!=null&&v.a!=null;}).length;
+        return (<div key={rd} className="group ko">
+          <div className="group-head static">
+            <span className="group-tag ko">{KO_LABEL[rd]}</span>
+            <span className="muted tiny">{kMade}/{games.length} picked{myB[rd]?" · ★ set":""}</span>
+          </div>
+          {games.map(m=>renderMatch(m))}
+        </div>);
+      })}
+      <div className="section-head all"><span>{KO.length>0?"Group stage":"All matches by group"}</span></div>
       {GROUPS.map(g=>{
         const open=openGroups.has(g); const games=MATCHES.filter(m=>m.g===g);
         const gMade=games.filter(m=>{const v=myS[m.id];return v&&v.h!==""&&v.a!==""&&v.h!=null&&v.a!=null;}).length;
@@ -851,17 +863,6 @@ function Pool(){
             <span className="caret">{open?"−":"+"}</span>
           </button>
           {open&&games.map(m=>renderMatch(m))}
-        </div>);
-      })}
-      {KO.length>0 && KO_ORDER.filter(rd=>KO.some(m=>m.round===rd)).map(rd=>{
-        const games=KO.filter(m=>m.round===rd);
-        const kMade=games.filter(m=>{const v=myS[m.id];return v&&v.h!==""&&v.a!==""&&v.h!=null&&v.a!=null;}).length;
-        return (<div key={rd} className="group ko">
-          <div className="group-head static">
-            <span className="group-tag ko">{KO_LABEL[rd]}</span>
-            <span className="muted tiny">{kMade}/{games.length} picked{myB[rd]?" · ★ set":""}</span>
-          </div>
-          {games.map(m=>renderMatch(m))}
         </div>);
       })}
       <div className="savebar">{isCommish&&<button className="btn btn-smart big" onClick={smartFill}>✨ Smart Fill</button>}<button className="btn btn-primary big" onClick={savePicks} disabled={!dirty||busy}>{busy?"Saving…":(dirty?"Save my picks":"All saved ✓")}</button></div>
